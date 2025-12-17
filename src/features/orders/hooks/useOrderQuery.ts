@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { OrderListQuery, OrderStatus } from '../domain/types';
 
@@ -23,6 +23,7 @@ export function useOrderQuery() {
   const sp = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
+  const [reloadKey, setReloadKey] = useState(0);
 
   // 从 URLSearchParams 解析出强类型的查询对象
   const query: OrderListQuery = useMemo(() => {
@@ -100,10 +101,17 @@ export function useOrderQuery() {
     (opts?.replace ? router.replace : router.push)(url);
   }
 
+  // 强制刷新列表（不改变过滤条件），通过增加一个简单的数字键触发依赖更新
+  function refresh() {
+    // 使用 router.replace 带上一个时间戳参数，保证 URL 本身不发生可见变化
+    // 但更重要的是通过 setReloadKey 通知使用该键的 hook 重新拉取
+    setReloadKey((k: number) => (k ?? 0) + 1);
+  }
+
   // 将查询重置为默认第一页、默认分页及排序
   function resetQuery() {
     router.push(`${pathname}?page=1&pageSize=${DEFAULT_PAGE_SIZE}&sortBy=createdAt&sortOrder=desc`);
   }
 
-  return { query, setQuery, resetQuery };
+  return { query, setQuery, resetQuery, refresh, reloadKey };
 }

@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { cancelOrder, deleteOrder } from '../services/ordersApi';
+import { deleteOrder } from '../services/ordersApi';
+import type { Order } from '../domain/types';
+import { transition, type MachineContext } from '../domain/stateMachine';
 
 /**
  * useOrderActions
@@ -11,11 +13,12 @@ import { cancelOrder, deleteOrder } from '../services/ordersApi';
 export function useOrderActions() {
   const [pendingId, setPendingId] = useState<string | null>(null);
 
-  // 取消订单，返回 { ok: true } 或 { ok: false, message }
-  async function onCancel(id: string) {
-    setPendingId(id);
+  // 取消订单，接入状态机：接收完整 Order 对象以便读取 status/amount 等信息
+  async function onCancel(order: Order) {
+    setPendingId(order.id);
     try {
-      await cancelOrder(id);
+      const ctx: MachineContext = { orderId: order.id, role: 'operator', amount: order.amount };
+      await transition(order.status, { type: 'CANCEL' }, ctx);
       return { ok: true as const };
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e ?? 'Cancel failed');
@@ -25,11 +28,11 @@ export function useOrderActions() {
     }
   }
 
-  // 删除订单，返回 { ok: true } 或 { ok: false, message }
-  async function onDelete(id: string) {
-    setPendingId(id);
+  // 删除订单，保持原有实现（删除不改变状态机中的状态）
+  async function onDelete(order: Order) {
+    setPendingId(order.id);
     try {
-      await deleteOrder(id);
+      await deleteOrder(order.id);
       return { ok: true as const };
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e ?? 'Delete failed');

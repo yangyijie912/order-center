@@ -12,7 +12,7 @@ import { fetchOrders } from '../services/ordersApi';
  * 注意点：为了避免 useEffect 对象引用导致的重复请求，先将 query 的关键字段序列化为字符串，
  * 再解析为 `currentQuery` 作为实际请求参数。这可以兼顾稳定的依赖与可比性。
  */
-export function useOrderList(query: OrderListQuery) {
+export function useOrderList(query: OrderListQuery, reloadKey?: number) {
   const [data, setData] = useState<OrderListResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +73,7 @@ export function useOrderList(query: OrderListQuery) {
     return () => {
       cancelled = true;
     };
-  }, [serializedQuery, currentQuery]);
+  }, [serializedQuery, currentQuery, reloadKey]);
 
   return { data, loading, error };
 }

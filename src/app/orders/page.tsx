@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import type { Order } from '@/features/orders/domain/types';
 import { useOrderQuery } from '@/features/orders/hooks/useOrderQuery';
 import { useOrderList } from '@/features/orders/hooks/useOrderList';
@@ -11,9 +11,9 @@ import { OrderTable } from '@/features/orders/components/OrderTable';
 import OrderDetailDrawer from '@/features/orders/components/OrderDetailDrawer';
 import { Button, Popconfirm } from 'beaver-ui';
 
-export default function OrdersPage() {
-  const { query, setQuery, resetQuery } = useOrderQuery();
-  const { data, loading, error } = useOrderList(query);
+function OrdersPageContent() {
+  const { query, setQuery, resetQuery, refresh, reloadKey } = useOrderQuery();
+  const { data, loading, error } = useOrderList(query, reloadKey);
   const { onCancel, onDelete } = useOrderActions();
   const { selectedIds, clear, toggle } = useOrderSelection();
 
@@ -40,36 +40,43 @@ export default function OrdersPage() {
 
   // 取消订单处理
   async function handleCancel(o: Order) {
-    const res = await onCancel(o.id);
+    const res = await onCancel(o);
     if (!res.ok) alert(res.message);
-    setQuery({ page: query.page }, { replace: true });
+    refresh();
   }
 
   // 删除订单处理
   async function handleDelete(o: Order) {
-    const res = await onDelete(o.id);
+    const res = await onDelete(o);
     if (!res.ok) alert(res.message);
-    setQuery({ page: query.page }, { replace: true });
+    refresh();
   }
 
   // 批量取消
   async function handleBatchCancel() {
     if (selectedIds.length === 0) return;
+    // 将 id 转为 order 对象（从当前已加载列表中查找），若未找到则跳过
+    const byId = new Map(orders.map((o) => [o.id, o]));
     for (const id of selectedIds) {
-      await onCancel(id);
+      const ord = byId.get(id);
+      if (!ord) continue;
+      await onCancel(ord);
     }
     clear();
-    setQuery({ page: query.page }, { replace: true });
+    refresh();
   }
 
   // 批量删除
   async function handleBatchDelete() {
     if (selectedIds.length === 0) return;
+    const byId = new Map(orders.map((o) => [o.id, o]));
     for (const id of selectedIds) {
-      await onDelete(id);
+      const ord = byId.get(id);
+      if (!ord) continue;
+      await onDelete(ord);
     }
     clear();
-    setQuery({ page: query.page }, { replace: true });
+    refresh();
   }
 
   const orders = data?.list ?? [];
@@ -184,5 +191,13 @@ export default function OrdersPage() {
       {/* 详情抽屉 */}
       <OrderDetailDrawer open={detailOpen} order={detailOrder} onClose={handleCloseDetail} />
     </div>
+  );
+}
+
+export default function OrdersPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 20 }}>加载中...</div>}>
+      <OrdersPageContent />
+    </Suspense>
   );
 }

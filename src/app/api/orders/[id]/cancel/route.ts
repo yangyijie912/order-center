@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { __getDB, __setDB } from '../../route';
 
+// 取消订单接口（仅允许处于 pending 状态的订单被取消）
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const params = await ctx.params;
   const id = decodeURIComponent(params.id);

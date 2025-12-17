@@ -8,11 +8,15 @@ import { useOrderActions } from '@/features/orders/hooks/useOrderActions';
 import { OrderFilterBar } from '@/features/orders/components/OrderFilterBar';
 import { OrderTable } from '@/features/orders/components/OrderTable';
 
+// OrdersPage：订单管理页面
+// - 组合 useOrderQuery/useOrderList/useOrderActions 等 hooks
+// - 渲染筛选栏、表格与分页、以及单条订单详情面板
 export default function OrdersPage() {
   const { query, setQuery, resetQuery } = useOrderQuery();
   const { data, loading, error } = useOrderList(query);
   const { onCancel, onDelete } = useOrderActions();
 
+  // 当前选中的订单详情
   const [detail, setDetail] = useState<Order | null>(null);
 
   const totalPages = useMemo(() => {
@@ -20,14 +24,17 @@ export default function OrdersPage() {
     return Math.max(1, Math.ceil(data.total / data.pageSize));
   }, [data]);
 
+  // 取消订单处理：确认 -> 调用 hook -> 若失败显示错误 -> 刷新当前页
   async function handleCancel(o: Order) {
     const ok = confirm(`确认取消订单：${o.id} ?`);
     if (!ok) return;
     const res = await onCancel(o.id);
     if (!res.ok) alert(res.message);
+    // 使用 replace=true 避免增加历史记录，仅刷新当前页面数据
     setQuery({ page: query.page }, { replace: true }); // 触发刷新
   }
 
+  // 删除订单处理：确认 -> 调用 hook -> 刷新
   async function handleDelete(o: Order) {
     const ok = confirm(`确认删除订单：${o.id} ?`);
     if (!ok) return;

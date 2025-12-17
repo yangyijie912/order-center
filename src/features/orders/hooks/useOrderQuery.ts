@@ -4,19 +4,27 @@ import { useMemo } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { OrderListQuery, OrderStatus } from '../domain/types';
 
+// 默认分页大小
 const DEFAULT_PAGE_SIZE = 10;
 
+// 将可能为 null 的字符串解析为受限范围内的整数
 function clampInt(v: string | null, fallback: number, min: number, max: number): number {
   const n = Number.parseInt(v ?? '', 10);
   if (Number.isNaN(n)) return fallback;
   return Math.min(max, Math.max(min, n));
 }
 
+/**
+ * useOrderQuery
+ * - 将 URL 查询参数解析为 `OrderListQuery`，并提供更新查询参数的 `setQuery` / `resetQuery`
+ * - 使用 URL Search Params 作为单一数据源，方便分享/书签以及后退前进行为一致性
+ */
 export function useOrderQuery() {
   const sp = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
 
+  // 从 URLSearchParams 解析出强类型的查询对象
   const query: OrderListQuery = useMemo(() => {
     const page = clampInt(sp.get('page'), 1, 1, 9999);
     const pageSize = clampInt(sp.get('pageSize'), DEFAULT_PAGE_SIZE, 5, 100);
@@ -50,6 +58,12 @@ export function useOrderQuery() {
     };
   }, [sp]);
 
+  /**
+   * 更新查询参数
+   * - 接收部分补丁对象，将其合并到当前 query
+   * - 若涉及筛选条件变更（非 page），会将页码重置为 1（除非在 patch 中显式设置 page）
+   * - 支持通过 opts.replace 决定使用 router.replace（替换历史）还是 router.push（新增历史）
+   */
   function setQuery(patch: Partial<OrderListQuery>, opts?: { replace?: boolean }) {
     const next = { ...query, ...patch };
 
@@ -86,6 +100,7 @@ export function useOrderQuery() {
     (opts?.replace ? router.replace : router.push)(url);
   }
 
+  // 将查询重置为默认第一页、默认分页及排序
   function resetQuery() {
     router.push(`${pathname}?page=1&pageSize=${DEFAULT_PAGE_SIZE}&sortBy=createdAt&sortOrder=desc`);
   }

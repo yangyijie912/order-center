@@ -3,6 +3,7 @@ import type { Order, OrderListResponse, OrderStatus } from '@/features/orders/do
 
 declare global {
   interface GlobalThis {
+    // 在全局挂载用于开发环境下的内存 DB，便于在不同请求间保留模拟数据
     __ORDER_DB__?: Order[];
   }
 }
@@ -44,6 +45,11 @@ function q(req: Request) {
   return searchParams;
 }
 
+/**
+ * GET /api/orders
+ * - 支持关键字、状态、创建时间范围、金额范围、排序、分页等参数
+ * - 在内存 DB 上进行过滤、排序与分页后返回结果
+ */
 export async function GET(req: Request) {
   const sp = q(req);
   const page = Math.max(1, Number(sp.get('page') ?? 1));
@@ -61,6 +67,7 @@ export async function GET(req: Request) {
 
   let list = __getDB().slice();
 
+  // 关键字过滤（支持订单号 / 用户名 / 电话）
   if (keyword) {
     const kw = keyword.toLowerCase();
     list = list.filter(
@@ -71,10 +78,12 @@ export async function GET(req: Request) {
     );
   }
 
+  // 状态过滤
   if (status) {
     list = list.filter((o) => o.status === status);
   }
 
+  // 创建时间范围过滤，注意 createdTo 需要包含当天的 23:59:59
   if (createdFrom) {
     const from = new Date(createdFrom).getTime();
     if (!Number.isNaN(from)) list = list.filter((o) => new Date(o.createdAt).getTime() >= from);
@@ -84,15 +93,18 @@ export async function GET(req: Request) {
     if (!Number.isNaN(to)) list = list.filter((o) => new Date(o.createdAt).getTime() <= to + 24 * 60 * 60 * 1000 - 1);
   }
 
+  // 金额范围过滤
   if (minAmount != null && Number.isFinite(minAmount)) list = list.filter((o) => o.amount >= minAmount);
   if (maxAmount != null && Number.isFinite(maxAmount)) list = list.filter((o) => o.amount <= maxAmount);
 
+  // 排序
   list.sort((a, b) => {
     const av = sortBy === 'amount' ? a.amount : new Date(a.createdAt).getTime();
     const bv = sortBy === 'amount' ? b.amount : new Date(b.createdAt).getTime();
     return sortOrder === 'asc' ? (av > bv ? 1 : -1) : av < bv ? 1 : -1;
   });
 
+  // 分页
   const total = list.length;
   const start = (page - 1) * pageSize;
   const paged = list.slice(start, start + pageSize);

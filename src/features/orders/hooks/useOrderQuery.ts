@@ -22,7 +22,7 @@ export function useOrderQuery() {
     const pageSize = clampInt(sp.get('pageSize'), DEFAULT_PAGE_SIZE, 5, 100);
 
     const statusRaw = sp.get('status') ?? 'all';
-    const status = (statusRaw === 'all' ? 'all' : (statusRaw as OrderStatus));
+    const status = statusRaw === 'all' ? 'all' : (statusRaw as OrderStatus);
 
     const keyword = sp.get('keyword') ?? undefined;
     const createdFrom = sp.get('createdFrom') ?? undefined;
@@ -55,9 +55,18 @@ export function useOrderQuery() {
 
     // 任意筛选变化，重置 page=1
     const filterKeys: (keyof OrderListQuery)[] = [
-      'keyword', 'status', 'createdFrom', 'createdTo', 'minAmount', 'maxAmount', 'sortBy', 'sortOrder', 'pageSize'
+      'keyword',
+      'status',
+      'createdFrom',
+      'createdTo',
+      'minAmount',
+      'maxAmount',
+      'sortBy',
+      'sortOrder',
+      'pageSize',
     ];
-    const filtersChanged = filterKeys.some(k => (patch as any)[k] !== undefined);
+    const patchRecord = patch as Partial<Record<keyof OrderListQuery, unknown>>;
+    const filtersChanged = filterKeys.some((k) => patchRecord[k] !== undefined);
     if (filtersChanged && patch.page === undefined) next.page = 1;
 
     const nsp = new URLSearchParams();

@@ -11,8 +11,9 @@ export function useOrderActions() {
     try {
       await cancelOrder(id);
       return { ok: true as const };
-    } catch (e: any) {
-      return { ok: false as const, message: e?.message || 'Cancel failed' };
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e ?? 'Cancel failed');
+      return { ok: false as const, message };
     } finally {
       setPendingId(null);
     }
@@ -23,8 +24,9 @@ export function useOrderActions() {
     try {
       await deleteOrder(id);
       return { ok: true as const };
-    } catch (e: any) {
-      return { ok: false as const, message: e?.message || 'Delete failed' };
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e ?? 'Delete failed');
+      return { ok: false as const, message };
     } finally {
       setPendingId(null);
     }

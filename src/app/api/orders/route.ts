@@ -1,10 +1,16 @@
 import { NextResponse } from 'next/server';
 import type { Order, OrderListResponse, OrderStatus } from '@/features/orders/domain/types';
 
+declare global {
+  interface GlobalThis {
+    __ORDER_DB__?: Order[];
+  }
+}
+
 const STATUSES: OrderStatus[] = ['pending', 'paid', 'shipped', 'completed', 'cancelled', 'refunded'];
 
 // 模拟“数据库”——注意：dev 热更新/无服务器环境可能会重置
-let DB: Order[] = globalThis.__ORDER_DB__ as any;
+let DB: Order[] | undefined = globalThis.__ORDER_DB__;
 
 function seed(): Order[] {
   const now = Date.now();
@@ -30,7 +36,7 @@ function seed(): Order[] {
 
 if (!DB) {
   DB = seed();
-  (globalThis as any).__ORDER_DB__ = DB;
+  globalThis.__ORDER_DB__ = DB;
 }
 
 function q(req: Request) {
@@ -53,37 +59,38 @@ export async function GET(req: Request) {
   const sortBy = (sp.get('sortBy') ?? 'createdAt') as 'createdAt' | 'amount';
   const sortOrder = (sp.get('sortOrder') ?? 'desc') as 'asc' | 'desc';
 
-  let list = DB.slice();
+  let list = __getDB().slice();
 
   if (keyword) {
     const kw = keyword.toLowerCase();
-    list = list.filter(o =>
-      o.id.toLowerCase().includes(kw) ||
-      o.userName.toLowerCase().includes(kw) ||
-      (o.phone ?? '').toLowerCase().includes(kw)
+    list = list.filter(
+      (o) =>
+        o.id.toLowerCase().includes(kw) ||
+        o.userName.toLowerCase().includes(kw) ||
+        (o.phone ?? '').toLowerCase().includes(kw)
     );
   }
 
   if (status) {
-    list = list.filter(o => o.status === status);
+    list = list.filter((o) => o.status === status);
   }
 
   if (createdFrom) {
     const from = new Date(createdFrom).getTime();
-    if (!Number.isNaN(from)) list = list.filter(o => new Date(o.createdAt).getTime() >= from);
+    if (!Number.isNaN(from)) list = list.filter((o) => new Date(o.createdAt).getTime() >= from);
   }
   if (createdTo) {
     const to = new Date(createdTo).getTime();
-    if (!Number.isNaN(to)) list = list.filter(o => new Date(o.createdAt).getTime() <= to + 24*60*60*1000 - 1);
+    if (!Number.isNaN(to)) list = list.filter((o) => new Date(o.createdAt).getTime() <= to + 24 * 60 * 60 * 1000 - 1);
   }
 
-  if (minAmount != null && Number.isFinite(minAmount)) list = list.filter(o => o.amount >= minAmount);
-  if (maxAmount != null && Number.isFinite(maxAmount)) list = list.filter(o => o.amount <= maxAmount);
+  if (minAmount != null && Number.isFinite(minAmount)) list = list.filter((o) => o.amount >= minAmount);
+  if (maxAmount != null && Number.isFinite(maxAmount)) list = list.filter((o) => o.amount <= maxAmount);
 
   list.sort((a, b) => {
     const av = sortBy === 'amount' ? a.amount : new Date(a.createdAt).getTime();
     const bv = sortBy === 'amount' ? b.amount : new Date(b.createdAt).getTime();
-    return sortOrder === 'asc' ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
+    return sortOrder === 'asc' ? (av > bv ? 1 : -1) : av < bv ? 1 : -1;
   });
 
   const total = list.length;
@@ -95,11 +102,15 @@ export async function GET(req: Request) {
 }
 
 // helper for other routes
-export function __getDB() {
+export function __getDB(): Order[] {
+  if (!DB) {
+    DB = seed();
+    globalThis.__ORDER_DB__ = DB;
+  }
   return DB;
 }
 
 export function __setDB(next: Order[]) {
   DB = next;
-  (globalThis as any).__ORDER_DB__ = DB;
+  globalThis.__ORDER_DB__ = DB;
 }

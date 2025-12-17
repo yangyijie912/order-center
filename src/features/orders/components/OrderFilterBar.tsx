@@ -1,5 +1,6 @@
 'use client';
 
+import type { ChangeEvent } from 'react';
 import type { OrderListQuery, OrderStatus } from '../domain/types';
 
 const STATUSES: { label: string; value: OrderStatus | 'all' }[] = [
@@ -30,11 +31,13 @@ export function OrderFilterBar(props: {
 
       <select
         value={query.status ?? 'all'}
-        onChange={(e) => onChange({ status: (e.target.value as any) })}
+        onChange={(e: ChangeEvent<HTMLSelectElement>) => onChange({ status: e.target.value as OrderStatus | 'all' })}
         style={{ padding: '8px 10px' }}
       >
-        {STATUSES.map(s => (
-          <option key={s.value} value={s.value}>{s.label}</option>
+        {STATUSES.map((s) => (
+          <option key={s.value} value={s.value}>
+            {s.label}
+          </option>
         ))}
       </select>
 
@@ -58,7 +61,9 @@ export function OrderFilterBar(props: {
         />
       </label>
 
-      <button onClick={onReset} style={{ padding: '8px 12px' }}>重置</button>
+      <button onClick={onReset} style={{ padding: '8px 12px' }}>
+        重置
+      </button>
     </div>
   );
 }

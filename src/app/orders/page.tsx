@@ -39,15 +39,8 @@ export default function OrdersPage() {
   return (
     <div style={{ padding: 20, maxWidth: 1100, margin: '0 auto' }}>
       <h1 style={{ fontSize: 22, marginBottom: 8 }}>Order Center（订单中心）</h1>
-      <p style={{ marginTop: 0, marginBottom: 16, color: '#555' }}>
-        第一版：筛选 + 表格 + 分页 + 状态规则（后续把原生控件替换成 Beaver UI 组件）。
-      </p>
 
-      <OrderFilterBar
-        query={query}
-        onChange={(patch) => setQuery(patch)}
-        onReset={resetQuery}
-      />
+      <OrderFilterBar query={query} onChange={(patch) => setQuery(patch)} onReset={resetQuery} />
 
       <div style={{ height: 12 }} />
 
@@ -76,12 +69,16 @@ export default function OrdersPage() {
             onClick={() => setQuery({ page: Math.max(1, query.page - 1) })}
             disabled={query.page <= 1}
             style={{ padding: '8px 12px' }}
-          >上一页</button>
+          >
+            上一页
+          </button>
           <button
             onClick={() => setQuery({ page: query.page + 1 })}
             disabled={query.page >= totalPages}
             style={{ padding: '8px 12px' }}
-          >下一页</button>
+          >
+            下一页
+          </button>
         </div>
       </div>
 
@@ -89,7 +86,9 @@ export default function OrdersPage() {
         <div style={{ marginTop: 16, padding: 12, border: '1px solid #e5e7eb', borderRadius: 8 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <strong>订单详情</strong>
-            <button onClick={() => setDetail(null)} style={{ padding: '6px 10px' }}>关闭</button>
+            <button onClick={() => setDetail(null)} style={{ padding: '6px 10px' }}>
+              关闭
+            </button>
           </div>
           <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{JSON.stringify(detail, null, 2)}</pre>
         </div>

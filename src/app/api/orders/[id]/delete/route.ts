@@ -1,10 +1,11 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { __getDB, __setDB } from '../../route';
 
-export async function POST(_req: Request, ctx: { params: { id: string } }) {
-  const id = decodeURIComponent(ctx.params.id);
+export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params;
+  const id = decodeURIComponent(params.id);
   const db = __getDB();
-  const idx = db.findIndex(o => o.id === id);
+  const idx = db.findIndex((o) => o.id === id);
   if (idx === -1) return NextResponse.json({ message: 'Not found' }, { status: 404 });
 
   const o = db[idx];

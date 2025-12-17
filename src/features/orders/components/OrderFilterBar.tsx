@@ -1,5 +1,8 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import type { KeyboardEvent } from 'react';
 import type { OrderListQuery, OrderStatus } from '../domain/types';
 import { Input, Select, DatePicker, Button } from 'beaver-ui';
 
@@ -52,14 +55,31 @@ export function OrderFilterBar(props: {
 }) {
   const { query, onChange, onReset } = props;
 
+  // 本地 keyword 状态，避免每次按键就触发上层路由更新（造成输入丢失/卡顿）
+  const [localKeyword, setLocalKeyword] = useState<string>(query.keyword ?? '');
+
+  // 当外部 query 发生变化（例如通过历史/重置）时同步本地输入
+  useEffect(() => setLocalKeyword(query.keyword ?? ''), [query.keyword]);
+
+  // 使用通用的防抖钩子，300ms 延迟
+  const debouncedKeyword = useDebouncedValue(localKeyword, 300);
+
+  useEffect(() => {
+    const next = debouncedKeyword || undefined;
+    if (next !== query.keyword) onChange({ keyword: next });
+  }, [debouncedKeyword, onChange, query.keyword]);
+
   return (
     <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
       {/* 关键字输入：搜索订单号或用户名 */}
       <Input
-        value={query.keyword ?? ''}
+        value={localKeyword}
         placeholder="订单号 / 用户名"
-        onChange={(e) => onChange({ keyword: (e.target as HTMLInputElement).value || undefined })}
-        width={240}
+        onChange={(e) => setLocalKeyword((e.target as HTMLInputElement).value)}
+        onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
+          if (e.key === 'Enter') onChange({ keyword: localKeyword || undefined });
+        }}
+        width={'240px'}
       />
 
       {/* 状态下拉：从 STATUSES 中渲染选项 */}
@@ -67,7 +87,7 @@ export function OrderFilterBar(props: {
         options={STATUS_OPTIONS}
         value={String(query.status ?? 'all')}
         onChange={(v) => onChange({ status: (v as string) === 'all' ? 'all' : (v as OrderStatus) })}
-        width={160}
+        width={'160px'}
       />
 
       {/* 起始日期：使用 date input，value 为空时回传 undefined */}
@@ -77,7 +97,7 @@ export function OrderFilterBar(props: {
           picker="date"
           value={parseDateString(query.createdFrom)}
           onChange={(d) => onChange({ createdFrom: formatDateToYMD(d) })}
-          width={160}
+          width={'160px'}
         />
       </label>
 
@@ -88,7 +108,7 @@ export function OrderFilterBar(props: {
           picker="date"
           value={parseDateString(query.createdTo)}
           onChange={(d) => onChange({ createdTo: formatDateToYMD(d) })}
-          width={160}
+          width={'160px'}
         />
       </label>
 

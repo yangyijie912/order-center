@@ -105,6 +105,10 @@ export function OrderTable(props: {
         current: number;
         pageSize: number;
         onChange?: (page: number, pageSize?: number) => void;
+        showQuickJumper?: boolean;
+        showSizeChanger?: boolean;
+        pageSizeOptions?: number[];
+        onShowSizeChange?: (current: number, size: number) => void;
       } =
     pagination === false
       ? false
@@ -113,6 +117,16 @@ export function OrderTable(props: {
           current: pagination?.page ?? 1,
           pageSize: pagination?.pageSize ?? 10,
           onChange: pagination?.onChange,
+          // 显示快速跳转输入框
+          showQuickJumper: true,
+          // 允许切换每页数量
+          showSizeChanger: true,
+          // 可选的每页显示条数（数字类型）
+          pageSizeOptions: [10, 20, 50, 100],
+          // 当用户改变每页数量时，重置到第一页并触发外部回调
+          onShowSizeChange: (_current: number, size: number) => {
+            pagination?.onChange?.(1, size);
+          },
         };
 
   return (

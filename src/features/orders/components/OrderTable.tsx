@@ -2,6 +2,7 @@
 
 import type { Order } from '../domain/types';
 import { canActionOnOrder } from '../domain/rules';
+import { Button, Table } from 'beaver-ui';
 
 /**
  * OrderTable
@@ -22,84 +23,102 @@ export function OrderTable(props: {
   onView: (o: Order) => void;
   onCancel: (o: Order) => void;
   onDelete: (o: Order) => void;
+  // 分页信息与回调（可选）
+  pagination?:
+    | { total: number; page: number; pageSize: number; onChange?: (page: number, pageSize?: number) => void }
+    | false;
 }) {
-  const { orders, loading, onView, onCancel, onDelete } = props;
+  const { orders, loading, onView, onCancel, onDelete, pagination } = props;
+
+  // beaver-ui Table 的列定义
+  type LocalColumn = {
+    key: string;
+    title: string;
+    render: (value: unknown, row: unknown) => React.ReactNode;
+    width?: string;
+    align?: 'center' | 'left' | 'right';
+  };
+
+  const columns: LocalColumn[] = [
+    { key: 'id', title: '订单号', render: (_value: unknown, row: unknown) => (row as Order).id },
+    { key: 'user', title: '用户', render: (_value: unknown, row: unknown) => (row as Order).userName },
+    {
+      key: 'amount',
+      title: '金额',
+      render: (_value: unknown, row: unknown) =>
+        `${(row as Order).currency} ${Number((row as Order).amount).toFixed(2)}`,
+    },
+    { key: 'status', title: '状态', render: (_value: unknown, row: unknown) => statusTag((row as Order).status) },
+    {
+      key: 'createdAt',
+      title: '创建时间',
+      render: (_value: unknown, row: unknown) => new Date((row as Order).createdAt).toLocaleString(),
+    },
+    {
+      key: 'actions',
+      title: '操作',
+      width: '220px',
+      align: 'center',
+      render: (_value: unknown, row: unknown) => (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <Button onClick={() => onView(row as Order)} size="small" variant="link">
+            详情
+          </Button>
+          <Button
+            onClick={() => onCancel(row as Order)}
+            size="small"
+            variant="link"
+            disabled={!canActionOnOrder(row as Order, 'CANCEL')}
+          >
+            取消
+          </Button>
+          <Button
+            onClick={() => onDelete(row as Order)}
+            size="small"
+            variant="link"
+            color="danger"
+            disabled={!canActionOnOrder(row as Order, 'DELETE')}
+          >
+            删除
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
+  const data: Order[] = orders.map((o) => ({ ...o }));
+
+  // 构造分页配置
+  const tablePagination:
+    | false
+    | {
+        total: number;
+        current: number;
+        pageSize: number;
+        onChange?: (page: number, pageSize?: number) => void;
+      } =
+    pagination === false
+      ? false
+      : {
+          total: pagination?.total ?? 0,
+          current: pagination?.page ?? 1,
+          pageSize: pagination?.pageSize ?? 10,
+          onChange: pagination?.onChange,
+        };
 
   return (
-    <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr style={{ background: '#f9fafb' }}>
-            <th style={th}>订单号</th>
-            <th style={th}>用户</th>
-            <th style={th}>金额</th>
-            <th style={th}>状态</th>
-            <th style={th}>创建时间</th>
-            <th style={th}>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {/* 根据加载与数据状态渲染不同占位或数据行 */}
-          {loading ? (
-            <tr>
-              <td style={td} colSpan={6}>
-                加载中...
-              </td>
-            </tr>
-          ) : orders.length === 0 ? (
-            <tr>
-              <td style={td} colSpan={6}>
-                暂无数据
-              </td>
-            </tr>
-          ) : (
-            orders.map((o) => (
-              <tr key={o.id} style={{ borderTop: '1px solid #eee' }}>
-                <td style={td}>{o.id}</td>
-                <td style={td}>{o.userName}</td>
-                <td style={td}>
-                  {o.currency} {o.amount.toFixed(2)}
-                </td>
-                <td style={td}>{statusLabel(o.status)}</td>
-                <td style={td}>{new Date(o.createdAt).toLocaleString()}</td>
-                <td style={td}>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {/* 详情按钮 */}
-                    <button onClick={() => onView(o)} style={btn}>
-                      详情
-                    </button>
-                    {/* 取消/删除按钮使用 domain/rules 中的权限判断，决定是否可交互 */}
-                    <button
-                      onClick={() => onCancel(o)}
-                      style={btn}
-                      disabled={!canActionOnOrder(o, 'CANCEL')}
-                      title={!canActionOnOrder(o, 'CANCEL') ? '该状态不可取消' : ''}
-                    >
-                      取消
-                    </button>
-                    <button
-                      onClick={() => onDelete(o)}
-                      style={btn}
-                      disabled={!canActionOnOrder(o, 'DELETE')}
-                      title={!canActionOnOrder(o, 'DELETE') ? '该状态不可删除' : ''}
-                    >
-                      删除
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+    <div>
+      <Table
+        columns={columns}
+        data={data}
+        rowKey={'id'}
+        border
+        pagination={tablePagination}
+        emptyText={loading ? '加载中...' : '暂无数据'}
+      />
     </div>
   );
 }
-
-// 表格样式（列头、列数据、按钮）
-const th: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontWeight: 600, fontSize: 13 };
-const td: React.CSSProperties = { padding: '10px 12px', fontSize: 13, verticalAlign: 'top' };
-const btn: React.CSSProperties = { padding: '6px 10px' };
 
 // 将订单状态的枚举值映射为中文标签
 function statusLabel(s: Order['status']) {
@@ -119,4 +138,29 @@ function statusLabel(s: Order['status']) {
     default:
       return s;
   }
+}
+
+// 返回带颜色的状态标签
+function statusTag(s: Order['status']) {
+  const text = statusLabel(s);
+  const styleMap: Record<string, React.CSSProperties> = {
+    pending: { background: '#fff4e5', color: '#b36b00' },
+    paid: { background: '#e6f7ff', color: '#096dd9' },
+    shipped: { background: '#f0f5ff', color: '#2f54eb' },
+    completed: { background: '#f6ffed', color: '#237804' },
+    cancelled: { background: '#f5f5f5', color: '#8c8c8c' },
+    refunded: { background: '#fff1f0', color: '#a8071a' },
+  };
+
+  const base: React.CSSProperties = {
+    display: 'inline-block',
+    padding: '4px 10px',
+    borderRadius: 12,
+    fontSize: 12,
+    fontWeight: 500,
+  };
+
+  const style = { ...(styleMap[s] ?? { background: '#fafafa', color: '#222' }), ...base };
+
+  return <span style={style}>{text}</span>;
 }

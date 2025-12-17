@@ -7,6 +7,7 @@ import { useOrderList } from '@/features/orders/hooks/useOrderList';
 import { useOrderActions } from '@/features/orders/hooks/useOrderActions';
 import { OrderFilterBar } from '@/features/orders/components/OrderFilterBar';
 import { OrderTable } from '@/features/orders/components/OrderTable';
+import { Button } from 'beaver-ui';
 
 // OrdersPage：订单管理页面
 // - 组合 useOrderQuery/useOrderList/useOrderActions 等 hooks
@@ -65,37 +66,32 @@ export default function OrdersPage() {
         onView={(o) => setDetail(o)}
         onCancel={handleCancel}
         onDelete={handleDelete}
+        pagination={
+          data
+            ? {
+                total: data.total,
+                page: data.page,
+                pageSize: data.pageSize,
+                onChange: (p, ps) => setQuery({ page: p, pageSize: ps ?? data.pageSize }),
+              }
+            : false
+        }
       />
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
         <div style={{ fontSize: 13, color: '#555' }}>
           共 {data?.total ?? 0} 条，page {data?.page ?? query.page} / {totalPages}
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            onClick={() => setQuery({ page: Math.max(1, query.page - 1) })}
-            disabled={query.page <= 1}
-            style={{ padding: '8px 12px' }}
-          >
-            上一页
-          </button>
-          <button
-            onClick={() => setQuery({ page: query.page + 1 })}
-            disabled={query.page >= totalPages}
-            style={{ padding: '8px 12px' }}
-          >
-            下一页
-          </button>
-        </div>
+        <div />
       </div>
 
       {detail ? (
         <div style={{ marginTop: 16, padding: 12, border: '1px solid #e5e7eb', borderRadius: 8 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <strong>订单详情</strong>
-            <button onClick={() => setDetail(null)} style={{ padding: '6px 10px' }}>
+            <Button onClick={() => setDetail(null)} size="small">
               关闭
-            </button>
+            </Button>
           </div>
           <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{JSON.stringify(detail, null, 2)}</pre>
         </div>

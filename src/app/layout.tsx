@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
+// 引入 beaver-ui 全局样式
+import 'beaver-ui/dist/index.css';
 
 // 引入 Google 字体（通过 next/font）并设置为 CSS 变量，方便在全局样式中使用
 const geistSans = Geist({

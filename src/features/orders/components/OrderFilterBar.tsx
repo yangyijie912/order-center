@@ -1,7 +1,7 @@
 'use client';
 
-import type { ChangeEvent } from 'react';
 import type { OrderListQuery, OrderStatus } from '../domain/types';
+import { Input, Select, DatePicker, Button } from 'beaver-ui';
 
 // 组件用到的订单状态选项列表
 // - label: 展示给用户看的文本
@@ -15,6 +15,23 @@ const STATUSES: { label: string; value: OrderStatus | 'all' }[] = [
   { label: '已取消', value: 'cancelled' },
   { label: '已退款', value: 'refunded' },
 ];
+
+// 将 STATUSES 转成 beaver-ui Select 需要的 options
+const STATUS_OPTIONS = STATUSES.map((s) => ({ label: s.label, value: String(s.value) }));
+
+function parseDateString(v?: string) {
+  if (!v) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function formatDateToYMD(d?: Date | null) {
+  if (!d) return undefined;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 /**
  * OrderFilterBar
@@ -38,56 +55,47 @@ export function OrderFilterBar(props: {
   return (
     <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
       {/* 关键字输入：搜索订单号或用户名 */}
-      <input
+      <Input
         value={query.keyword ?? ''}
         placeholder="订单号 / 用户名"
-        // 当输入为空字符串时，向上传递 `undefined` 表示清除该筛选项
-        onChange={(e) => onChange({ keyword: e.target.value || undefined })}
-        style={{ padding: '8px 10px', width: 240 }}
+        onChange={(e) => onChange({ keyword: (e.target as HTMLInputElement).value || undefined })}
+        width={240}
       />
 
       {/* 状态下拉：从 STATUSES 中渲染选项 */}
-      <select
-        value={query.status ?? 'all'}
-        onChange={(e: ChangeEvent<HTMLSelectElement>) =>
-          // 强制转换为 `OrderStatus | 'all'`，因为 select 返回 string
-          onChange({ status: e.target.value as OrderStatus | 'all' })
-        }
-        style={{ padding: '8px 10px' }}
-      >
-        {STATUSES.map((s) => (
-          <option key={s.value} value={s.value}>
-            {s.label}
-          </option>
-        ))}
-      </select>
+      <Select
+        options={STATUS_OPTIONS}
+        value={String(query.status ?? 'all')}
+        onChange={(v) => onChange({ status: (v as string) === 'all' ? 'all' : (v as OrderStatus) })}
+        width={160}
+      />
 
       {/* 起始日期：使用 date input，value 为空时回传 undefined */}
       <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <span>从</span>
-        <input
-          type="date"
-          value={query.createdFrom ?? ''}
-          onChange={(e) => onChange({ createdFrom: e.target.value || undefined })}
-          style={{ padding: '8px 10px' }}
+        <DatePicker
+          picker="date"
+          value={parseDateString(query.createdFrom)}
+          onChange={(d) => onChange({ createdFrom: formatDateToYMD(d) })}
+          width={160}
         />
       </label>
 
       {/* 结束日期：使用 date input，value 为空时回传 undefined */}
       <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <span>到</span>
-        <input
-          type="date"
-          value={query.createdTo ?? ''}
-          onChange={(e) => onChange({ createdTo: e.target.value || undefined })}
-          style={{ padding: '8px 10px' }}
+        <DatePicker
+          picker="date"
+          value={parseDateString(query.createdTo)}
+          onChange={(d) => onChange({ createdTo: formatDateToYMD(d) })}
+          width={160}
         />
       </label>
 
       {/* 重置按钮：触发父组件传入的 `onReset` 回调 */}
-      <button onClick={onReset} style={{ padding: '8px 12px' }}>
+      <Button onClick={onReset} variant="ghost" size="medium">
         重置
-      </button>
+      </Button>
     </div>
   );
 }

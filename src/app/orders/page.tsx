@@ -5,11 +5,13 @@ import type { Order } from '@/features/orders/domain/types';
 import { useOrderQuery } from '@/features/orders/hooks/useOrderQuery';
 import { useOrderList } from '@/features/orders/hooks/useOrderList';
 import { useOrderActions } from '@/features/orders/hooks/useOrderActions';
+import { partitionIdsByAction } from '@/features/orders/domain/rules';
+import { batchAction } from '@/features/orders/services/ordersApi';
 import { useOrderSelection } from '@/features/orders/hooks/useOrderSelection';
 import { OrderFilterBar } from '@/features/orders/components/OrderFilterBar';
 import { OrderTable } from '@/features/orders/components/OrderTable';
 import OrderDetailDrawer from '@/features/orders/components/OrderDetailDrawer';
-import { Button, Popconfirm } from 'beaver-ui';
+import { Button, Popconfirm, Toast } from 'beaver-ui';
 
 function OrdersPageContent() {
   const { query, setQuery, resetQuery, refresh, reloadKey } = useOrderQuery();
@@ -41,42 +43,88 @@ function OrdersPageContent() {
   // 取消订单处理
   async function handleCancel(o: Order) {
     const res = await onCancel(o);
-    if (!res.ok) alert(res.message);
+    if (!res.ok) {
+      Toast.error(res.message ?? '取消失败');
+    } else {
+      Toast.success('取消成功');
+    }
     refresh();
   }
 
   // 删除订单处理
   async function handleDelete(o: Order) {
     const res = await onDelete(o);
-    if (!res.ok) alert(res.message);
+    if (!res.ok) {
+      Toast.error(res.message ?? '删除失败');
+    } else {
+      Toast.success('删除成功');
+    }
     refresh();
   }
 
   // 批量取消
   async function handleBatchCancel() {
     if (selectedIds.length === 0) return;
-    // 将 id 转为 order 对象（从当前已加载列表中查找），若未找到则跳过
-    const byId = new Map(orders.map((o) => [o.id, o]));
-    for (const id of selectedIds) {
-      const ord = byId.get(id);
-      if (!ord) continue;
-      await onCancel(ord);
+    // 先在客户端按规则过滤出允许取消的 id，避免无谓请求
+    const { allowedIds, skippedIds } = partitionIdsByAction(orders, selectedIds, 'cancel');
+
+    if (allowedIds.length === 0) {
+      Toast.info(`没有可取消的订单（跳过 ${skippedIds.length} 条）`);
+      clear();
+      return;
     }
-    clear();
-    refresh();
+
+    try {
+      const res = await batchAction('cancel', allowedIds);
+      const messages: string[] = [];
+      if (res.successIds.length) messages.push(`成功取消 ${res.successIds.length} 条`);
+      if (res.skippedIds.length || skippedIds.length)
+        messages.push(`跳过 ${res.skippedIds.length + skippedIds.length} 条`);
+      if (res.failed.length) messages.push(`失败 ${res.failed.length} 条`);
+
+      if (res.successIds.length && !res.failed.length) Toast.success(messages.join('，'));
+      else if (res.failed.length) Toast.error(messages.join('，'));
+      else Toast.info(messages.join('，'));
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e ?? 'Batch cancel failed');
+      Toast.error(msg);
+    } finally {
+      clear();
+      refresh();
+    }
   }
 
   // 批量删除
   async function handleBatchDelete() {
     if (selectedIds.length === 0) return;
-    const byId = new Map(orders.map((o) => [o.id, o]));
-    for (const id of selectedIds) {
-      const ord = byId.get(id);
-      if (!ord) continue;
-      await onDelete(ord);
+    // 先在客户端按规则过滤出允许删除的 id，避免无谓请求
+    const { allowedIds, skippedIds } = partitionIdsByAction(orders, selectedIds, 'delete');
+
+    if (allowedIds.length === 0) {
+      Toast.info(`没有可删除的订单（跳过 ${skippedIds.length} 条）`);
+      clear();
+      return;
     }
-    clear();
-    refresh();
+
+    try {
+      const res = await batchAction('delete', allowedIds);
+      // 提示结果：成功 / 跳过 / 失败
+      const messages: string[] = [];
+      if (res.successIds.length) messages.push(`成功删除 ${res.successIds.length} 条`);
+      if (res.skippedIds.length || skippedIds.length)
+        messages.push(`跳过 ${res.skippedIds.length + skippedIds.length} 条`);
+      if (res.failed.length) messages.push(`失败 ${res.failed.length} 条`);
+      // choose type based on results
+      if (res.successIds.length && !res.failed.length) Toast.success(messages.join('，'));
+      else if (res.failed.length) Toast.error(messages.join('，'));
+      else Toast.info(messages.join('，'));
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e ?? 'Batch delete failed');
+      Toast.error(msg);
+    } finally {
+      clear();
+      refresh();
+    }
   }
 
   const orders = data?.list ?? [];
@@ -96,8 +144,31 @@ function OrdersPageContent() {
 
       {/* 错误提示 */}
       {error ? (
-        <div style={{ padding: 12, border: '1px solid #fca5a5', borderRadius: 8, color: '#991b1b', marginBottom: 16 }}>
-          ⚠️ 请求失败：{error}
+        <div
+          role="alert"
+          style={{
+            padding: 12,
+            border: '1px solid #fca5a5',
+            borderRadius: 8,
+            color: '#991b1b',
+            marginBottom: 16,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span>⚠️</span>
+            <div style={{ fontSize: 14 }}>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>请求失败</div>
+              <div style={{ maxWidth: 800, wordBreak: 'break-word', color: '#701a1a' }}>{String(error)}</div>
+            </div>
+          </div>
+          <div>
+            <Button size="small" onClick={() => refresh()} variant="link">
+              重试
+            </Button>
+          </div>
         </div>
       ) : null}
 

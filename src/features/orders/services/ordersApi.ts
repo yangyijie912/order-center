@@ -57,3 +57,32 @@ export async function deleteOrder(id: string): Promise<{ success: true }> {
   if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
   return (await res.json()) as { success: true };
 }
+
+/**
+ * 批量操作接口：{ action: 'cancel'|'delete', ids: string[] }
+ */
+export async function batchAction(
+  action: 'cancel' | 'delete',
+  ids: string[]
+): Promise<{
+  successIds: string[];
+  skippedIds: string[];
+  failed: { id: string; reason: string }[];
+}> {
+  const res = await fetch('/api/orders/batch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, ids }),
+  });
+
+  if (!res.ok) {
+    const msg = await res.text().catch(() => '');
+    throw new Error(msg || `Batch ${action} failed: ${res.status}`);
+  }
+
+  return (await res.json()) as {
+    successIds: string[];
+    skippedIds: string[];
+    failed: { id: string; reason: string }[];
+  };
+}

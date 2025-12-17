@@ -2,7 +2,7 @@
 
 import type { Order } from '../domain/types';
 import { canActionOnOrder } from '../domain/rules';
-import { Button, Table } from 'beaver-ui';
+import { Button, Table, Popconfirm } from 'beaver-ui';
 
 /**
  * OrderTable
@@ -11,6 +11,8 @@ import { Button, Table } from 'beaver-ui';
  * Props:
  * - `orders`: 订单数组
  * - `loading`: 加载状态，占位显示
+ * - `selectedRowKeys`: 选中的行 key 数组（来自外部）
+ * - `onSelectChange`: 选择变化回调
  * - `onView`: 点击查看详情时的回调，传入对应订单
  * - `onCancel`: 点击取消订单时的回调
  * - `onDelete`: 点击删除订单时的回调
@@ -20,6 +22,8 @@ import { Button, Table } from 'beaver-ui';
 export function OrderTable(props: {
   orders: Order[];
   loading?: boolean;
+  selectedKeys?: string[];
+  onSelectionChange?: (keys: string[]) => void;
   onView: (o: Order) => void;
   onCancel: (o: Order) => void;
   onDelete: (o: Order) => void;
@@ -28,7 +32,7 @@ export function OrderTable(props: {
     | { total: number; page: number; pageSize: number; onChange?: (page: number, pageSize?: number) => void }
     | false;
 }) {
-  const { orders, loading, onView, onCancel, onDelete, pagination } = props;
+  const { orders, loading, selectedKeys = [], onSelectionChange, onView, onCancel, onDelete, pagination } = props;
 
   // beaver-ui Table 的列定义
   type LocalColumn = {
@@ -57,30 +61,35 @@ export function OrderTable(props: {
     {
       key: 'actions',
       title: '操作',
-      width: '220px',
+      width: '280px',
       align: 'center',
       render: (_value: unknown, row: unknown) => (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
           <Button onClick={() => onView(row as Order)} size="small" variant="link">
             详情
           </Button>
-          <Button
-            onClick={() => onCancel(row as Order)}
-            size="small"
-            variant="link"
-            disabled={!canActionOnOrder(row as Order, 'CANCEL')}
+          <Popconfirm
+            title="确认取消？"
+            description={`确认取消订单 ${(row as Order).id}？`}
+            onConfirm={() => onCancel(row as Order)}
+            okText="确定"
+            cancelText="取消"
           >
-            取消
-          </Button>
-          <Button
-            onClick={() => onDelete(row as Order)}
-            size="small"
-            variant="link"
-            color="danger"
-            disabled={!canActionOnOrder(row as Order, 'DELETE')}
+            <Button size="small" variant="link" disabled={!canActionOnOrder(row as Order, 'CANCEL')}>
+              取消
+            </Button>
+          </Popconfirm>
+          <Popconfirm
+            title="确认删除？"
+            description={`确认删除订单 ${(row as Order).id}？此操作不可恢复`}
+            onConfirm={() => onDelete(row as Order)}
+            okText="删除"
+            cancelText="取消"
           >
-            删除
-          </Button>
+            <Button size="small" variant="link" color="danger" disabled={!canActionOnOrder(row as Order, 'DELETE')}>
+              删除
+            </Button>
+          </Popconfirm>
         </div>
       ),
     },
@@ -113,6 +122,9 @@ export function OrderTable(props: {
         data={data}
         rowKey={'id'}
         border
+        showCheckbox
+        selectedKeys={selectedKeys}
+        onSelectionChange={onSelectionChange}
         pagination={tablePagination}
         emptyText={loading ? '加载中...' : '暂无数据'}
       />

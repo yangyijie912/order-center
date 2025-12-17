@@ -42,7 +42,7 @@ function formatDateToYMD(d?: Date | null) {
  *
  * Props:
  * - `query`: 当前的筛选查询对象（`OrderListQuery`），用于将当前筛选值回填到表单控件
- * - `onChange`: 当筛选条件发生改变时触发，接受一个 `Partial<OrderListQuery>` 补丁对象
+ * - `onChange`: 当筛选条件发生改变时触发，接受一个 `Partial(OrderListQuery)` 补丁对象
  * - `onReset`: 重置筛选器到初始状态的回调
  *
  * 注意：该组件使用受控组件模式（由外层传入 `query` 并通过 `onChange` 更新），

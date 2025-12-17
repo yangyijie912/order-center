@@ -17,7 +17,7 @@ export function useOrderList(query: OrderListQuery) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 将 query 中影响请求的字段序列化，作为 useEffect 的依赖，避免对象引用导致的重复执行
+  // 将 query 中影响请求的字段序化，作为 useEffect 的依赖，避免对象引用导致的重复执行
   const serializedQuery = useMemo(
     () =>
       JSON.stringify({

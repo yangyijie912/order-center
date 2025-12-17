@@ -1,46 +1,77 @@
 'use client';
 
 import { useState } from 'react';
-import { deleteOrder } from '../services/ordersApi';
 import type { Order } from '../domain/types';
-import { transition, type MachineContext } from '../domain/stateMachine';
+import { deleteOrder } from '../services/ordersApi';
+import type { OrderContext } from '../domain/stateMachine';
+import { orderTransitions, type OrderEvent } from '../domain/stateMachine';
+
+type ActionResult = { ok: boolean; message?: string };
 
 /**
  * useOrderActions
- * - 封装对单个订单的取消和删除动作
- * - 返回 `pendingId` 用于标识当前正在执行操作的订单（可用于禁用按钮或显示 loading）
+ * - 返回 onCancel 和 onDelete 方法供调用
  */
 export function useOrderActions() {
-  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [pending, setPending] = useState<{ [key: string]: boolean }>({});
 
-  // 取消订单，接入状态机：接收完整 Order 对象以便读取 status/amount 等信息
-  async function onCancel(order: Order) {
-    setPendingId(order.id);
+  const onCancel = async (order: Order): Promise<ActionResult> => {
+    const key = `cancel_${order.id}`;
     try {
-      const ctx: MachineContext = { orderId: order.id, role: 'operator', amount: order.amount };
-      await transition(order.status, { type: 'CANCEL' }, ctx);
-      return { ok: true as const };
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : String(e ?? 'Cancel failed');
-      return { ok: false as const, message };
+      setPending((p) => ({ ...p, [key]: true }));
+
+      // 检查转移是否允许
+      const t = orderTransitions[order.status]?.CANCEL;
+      if (!t) {
+        return { ok: false, message: '当前状态不支持取消操作' };
+      }
+
+      // 构建上下文并执行 effect
+      const ctx: OrderContext = {
+        order: {
+          id: order.id,
+          userId: order.userId,
+          amount: order.amount,
+          status: order.status,
+        },
+      };
+      if (t.effect) {
+        await t.effect(ctx, { type: 'CANCEL' } as OrderEvent);
+      }
+      return { ok: true };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '取消订单失败';
+      return { ok: false, message: msg };
     } finally {
-      setPendingId(null);
+      setPending((p) => {
+        const newPending = { ...p };
+        delete newPending[key];
+        return newPending;
+      });
     }
-  }
+  };
 
-  // 删除订单，保持原有实现（删除不改变状态机中的状态）
-  async function onDelete(order: Order) {
-    setPendingId(order.id);
+  const onDelete = async (order: Order): Promise<ActionResult> => {
+    const key = `delete_${order.id}`;
     try {
+      setPending((p) => ({ ...p, [key]: true }));
       await deleteOrder(order.id);
-      return { ok: true as const };
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : String(e ?? 'Delete failed');
-      return { ok: false as const, message };
+      return { ok: true };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '删除订单失败';
+      return { ok: false, message: msg };
     } finally {
-      setPendingId(null);
+      setPending((p) => {
+        const newPending = { ...p };
+        delete newPending[key];
+        return newPending;
+      });
     }
-  }
+  };
 
-  return { pendingId, onCancel, onDelete };
+  return {
+    onCancel,
+    onDelete,
+    pending,
+  };
 }

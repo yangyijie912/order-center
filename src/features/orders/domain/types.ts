@@ -18,6 +18,8 @@ export type Order = {
   updatedAt: string;
 
   itemsCount: number;
+  // 可选的运单号（发货后可能存在）
+  trackingNo?: string;
 };
 
 // 列表查询参数类型：用于构建请求或解析 URL 查询参数

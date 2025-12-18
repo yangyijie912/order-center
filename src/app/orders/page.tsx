@@ -24,9 +24,10 @@ function OrdersPageContent() {
   const [detailOrder, setDetailOrder] = useState<Order | null>(null);
   // 支付/退款 Modal 状态
   const [actionModalOpen, setActionModalOpen] = useState(false);
-  const [actionType, setActionType] = useState<'PAY' | 'REFUND' | null>(null);
+  const [actionType, setActionType] = useState<'PAY' | 'REFUND' | 'SHIP' | null>(null);
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
   const [refundReason, setRefundReason] = useState<string>('');
+  const [shippingNo, setShippingNo] = useState<string>('');
   const [actionLoading, setActionLoading] = useState(false);
 
   const totalPages = useMemo(() => {
@@ -214,10 +215,11 @@ function OrdersPageContent() {
         onView={handleViewDetail}
         onAction={async (action, o) => {
           if (action === 'VIEW_DETAIL') return handleViewDetail(o);
-          if (action === 'PAY' || action === 'REFUND') {
+          if (action === 'PAY' || action === 'REFUND' || action === 'SHIP') {
             setActiveOrder(o);
-            setActionType(action as 'PAY' | 'REFUND');
+            setActionType(action as 'PAY' | 'REFUND' | 'SHIP');
             setRefundReason('');
+            setShippingNo('');
             setActionModalOpen(true);
             return;
           }
@@ -265,7 +267,7 @@ function OrdersPageContent() {
       <Modal
         open={actionModalOpen}
         onClose={() => setActionModalOpen(false)}
-        title={actionType === 'PAY' ? '支付订单' : '退款订单'}
+        title={actionType === 'PAY' ? '支付订单' : actionType === 'REFUND' ? '退款订单' : '发货订单'}
         footer={
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <Button variant="ghost" onClick={() => setActionModalOpen(false)}>
@@ -276,7 +278,11 @@ function OrdersPageContent() {
               loading={actionLoading}
               disabled={
                 actionLoading ||
-                (actionType === 'PAY' ? activeOrder?.status !== 'pending' : activeOrder?.status !== 'paid')
+                (actionType === 'PAY'
+                  ? activeOrder?.status !== 'pending'
+                  : actionType === 'REFUND'
+                  ? activeOrder?.status !== 'paid'
+                  : activeOrder?.status !== 'paid')
               }
               onClick={async () => {
                 if (!activeOrder || !actionType) return;
@@ -285,9 +291,12 @@ function OrdersPageContent() {
                   if (actionType === 'PAY') {
                     await performAction('PAY', activeOrder);
                     Toast.success('支付成功');
-                  } else {
-                    await performAction('REFUND', activeOrder);
+                  } else if (actionType === 'REFUND') {
+                    await performAction('REFUND', activeOrder, { reason: refundReason });
                     Toast.success('退款成功');
+                  } else if (actionType === 'SHIP') {
+                    await performAction('SHIP', activeOrder, { trackingNo: shippingNo });
+                    Toast.success('发货成功');
                   }
                   setActionModalOpen(false);
                   refresh();
@@ -299,7 +308,7 @@ function OrdersPageContent() {
                 }
               }}
             >
-              {actionType === 'PAY' ? '去支付' : '确认退款'}
+              {actionType === 'PAY' ? '去支付' : actionType === 'REFUND' ? '确认退款' : '确认发货'}
             </Button>
           </div>
         }
@@ -321,6 +330,16 @@ function OrdersPageContent() {
                   value={refundReason}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setRefundReason(e.target.value)}
                   placeholder="请输入退款原因"
+                />
+              </div>
+            ) : null}
+            {actionType === 'SHIP' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ fontSize: 13 }}>运单号（可选）</label>
+                <Input
+                  value={shippingNo}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setShippingNo(e.target.value)}
+                  placeholder="请输入运单号"
                 />
               </div>
             ) : null}

@@ -1,5 +1,5 @@
 import type { OrderStatus } from './types';
-import { cancelOrder, payOrder, refundOrder } from '../services/ordersApi';
+import { cancelOrder, payOrder, refundOrder, shipOrder } from '../services/ordersApi';
 
 /**
  * 订单状态机定义
@@ -86,8 +86,9 @@ export const effects = {
 
   /** 发货处理：订单从 paid 转移到 shipped */
   SHIP: async (ctx: OrderContext, _event: OrderEvent): Promise<void> => {
-    // TODO: 调用真实发货 API
-    console.log(`[SHIP] Order ${ctx.order.id}`);
+    // 调用发货 API，支持传入运单号
+    const trackingNo = (_event as { payload?: { trackingNo?: string } }).payload?.trackingNo;
+    await shipOrder(ctx.order.id, trackingNo);
   },
 
   /** 确认收货处理：订单从 shipped 转移到 completed */

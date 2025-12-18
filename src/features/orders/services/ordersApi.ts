@@ -105,3 +105,18 @@ export async function refundOrder(id: string): Promise<{ success: true }> {
   if (!res.ok) throw new Error(`Refund failed: ${res.status}`);
   return (await res.json()) as { success: true };
 }
+
+/**
+ * 发货（模拟）
+ * @param id - 订单 ID
+ * @param trackingNo - 可选的运单号
+ */
+export async function shipOrder(id: string, trackingNo?: string): Promise<{ success: true }> {
+  const res = await fetch(`/api/orders/${encodeURIComponent(id)}/ship`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trackingNo }),
+  });
+  if (!res.ok) throw new Error(`Ship failed: ${res.status}`);
+  return (await res.json()) as { success: true };
+}

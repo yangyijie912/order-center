@@ -95,7 +95,8 @@ export function OrderTable(props: {
             const o = row as Order;
             const entity = new OrderEntity(o);
 
-            return Object.keys(UI_ACTIONS).map((key) => {
+            const orderedKeys: UIActionKey[] = ['VIEW_DETAIL', 'PAY', 'SHIP', 'REFUND', 'CANCEL', 'DELETE'];
+            return orderedKeys.map((key) => {
               const def = UI_ACTIONS[key as UIActionKey];
               const isEvent = !!def.eventType;
               let enabled = false;

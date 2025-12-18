@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { Order } from '../domain/types';
+import type { OrderEvent } from '../domain/stateMachine';
 import { deleteOrder } from '../services/ordersApi';
 import { OrderEntity } from '../domain/order';
 import type { UIActionKey } from '../ui/uiActions';
@@ -12,7 +13,7 @@ export type ActionResult = { ok: boolean; message?: string };
  * useOrderActions
  * - 返回 onCancel 和 onDelete 方法供调用
  */
-export type PerformAction = (action: UIActionKey, order: Order) => Promise<ActionResult>;
+export type PerformAction = (action: UIActionKey, order: Order, payload?: unknown) => Promise<ActionResult>;
 
 export type UseOrderActionsReturn = {
   onCancel: (order: Order) => Promise<ActionResult>;
@@ -65,7 +66,7 @@ export function useOrderActions(): UseOrderActionsReturn {
   /**
    * 通用动作执行器：根据 UI 动作分发到具体实现
    */
-  const performAction = async (action: UIActionKey, order: Order): Promise<ActionResult> => {
+  const performAction = async (action: UIActionKey, order: Order, payload?: unknown): Promise<ActionResult> => {
     switch (action) {
       case 'VIEW_DETAIL':
         // UI 层自己处理打开详情抽屉，框架层这里仅返回 ok
@@ -81,6 +82,31 @@ export function useOrderActions(): UseOrderActionsReturn {
           return { ok: true };
         } catch (e) {
           const msg = e instanceof Error ? e.message : '退款失败';
+          return { ok: false, message: msg };
+        }
+      case 'PAY':
+        try {
+          const entity = new OrderEntity(order);
+          await entity.next('PAY');
+          return { ok: true };
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : '支付失败';
+          return { ok: false, message: msg };
+        }
+      case 'SHIP':
+        try {
+          const entity = new OrderEntity(order);
+          let event: OrderEvent;
+          if (payload && typeof payload === 'object') {
+            const p = payload as { trackingNo?: string };
+            event = { type: 'SHIP', payload: { trackingNo: p.trackingNo } };
+          } else {
+            event = { type: 'SHIP' };
+          }
+          await entity.next('SHIP', event);
+          return { ok: true };
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : '发货失败';
           return { ok: false, message: msg };
         }
       default:

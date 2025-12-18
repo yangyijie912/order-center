@@ -50,6 +50,8 @@ export type OrderContext = {
  */
 type GuardResult = true | { ok: false; reason: string };
 
+type EffectResult = void | { next?: OrderStatus; message?: string };
+
 /**
  * 状态转移配置对象
  * target: 转移的目标状态
@@ -59,7 +61,7 @@ type GuardResult = true | { ok: false; reason: string };
 type Transition = {
   target: OrderStatus;
   guard?: (ctx: OrderContext) => GuardResult;
-  effect?: (ctx: OrderContext, event: OrderEvent) => Promise<void>;
+  effect?: (ctx: OrderContext, event: OrderEvent) => Promise<EffectResult>;
 };
 
 /**
@@ -73,14 +75,14 @@ type Transition = {
  */
 export const effects = {
   /** 支付处理：订单从 pending 转移到 paid */
-  PAY: async (ctx: OrderContext, _event: OrderEvent): Promise<void> => {
-    // 调用支付 API
-    await payOrder(ctx.order.id);
+  PAY: async (ctx: OrderContext, _event: OrderEvent): Promise<EffectResult> => {
+    const r = await payOrder(ctx.order.id);
+    return { next: r.next, message: r.message };
   },
 
   /** 取消处理：调用后端取消接口 */
   CANCEL: async (ctx: OrderContext, _event: OrderEvent): Promise<void> => {
-    // 使用真实取消 API
+    // 取消 API
     await cancelOrder(ctx.order.id);
   },
 
@@ -93,7 +95,7 @@ export const effects = {
 
   /** 确认收货处理：订单从 shipped 转移到 completed */
   CONFIRM_RECEIPT: async (ctx: OrderContext, _event: OrderEvent): Promise<void> => {
-    // TODO: 调用真实确认收货 API
+    // 收货 API
     console.log(`[CONFIRM_RECEIPT] Order ${ctx.order.id}`);
   },
 
@@ -104,10 +106,11 @@ export const effects = {
   },
 };
 
-export const orderTransitions: Record<OrderStatus, Record<string, Transition>> = {
+export const orderTransitions: Record<OrderStatus, Partial<Record<OrderEvent['type'], Transition>>> = {
   // 待支付：可以支付或取消
   pending: {
-    PAY: { target: 'paid', effect: effects.PAY },
+    // target 仅为默认值，真实 next 以 effect 返回为准
+    PAY: { target: 'paying', effect: effects.PAY },
     CANCEL: { target: 'cancelled', effect: effects.CANCEL },
   },
   // 已支付：可以发货、退款（需权限和条件）
@@ -137,7 +140,7 @@ export const orderTransitions: Record<OrderStatus, Record<string, Transition>> =
   paying: {},
   // 支付失败：可以重试支付或取消
   payment_failed: {
-    PAY: { target: 'paid', effect: effects.PAY },
+    PAY: { target: 'paying', effect: effects.PAY },
     CANCEL: { target: 'cancelled', effect: effects.CANCEL },
   },
   // 未知状态：需要人工介入/审查
@@ -199,15 +202,21 @@ export async function transition(
   status: OrderStatus,
   event: OrderEvent,
   ctx: OrderContext
-): Promise<{ next: OrderStatus }> {
+): Promise<{ next: OrderStatus; message?: string }> {
   const t = orderTransitions[status]?.[event.type];
   if (!t) throw new Error('INVALID_TRANSITION');
 
   const allowed = t.guard ? t.guard(ctx) : true;
   if (allowed !== true) throw new Error(allowed.reason);
 
-  if (t.effect) await t.effect(ctx, event);
-  return { next: t.target };
+  const effectRes = t.effect ? await t.effect(ctx, event) : undefined;
+
+  const next =
+    effectRes && typeof effectRes === 'object' && 'next' in effectRes && effectRes.next ? effectRes.next : t.target;
+
+  const message = effectRes && typeof effectRes === 'object' && 'message' in effectRes ? effectRes.message : undefined;
+
+  return { next, message };
 }
 
 /**

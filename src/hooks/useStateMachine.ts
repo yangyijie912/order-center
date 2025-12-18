@@ -14,7 +14,7 @@ export interface MachineTransition<S, C, E> {
   /** 可选的守卫函数：验证权限/规则，返回 true 允许转移或返回拒绝原因 */
   guard?: (ctx: C) => true | { ok: false; reason: string };
   /** 可选的副作用处理函数：转移前执行，如 API 调用 */
-  effect?: (ctx: C, event: E) => Promise<void>;
+  effect?: (ctx: C, event: E) => Promise<unknown>;
 }
 
 /**
@@ -29,8 +29,8 @@ interface UseStateMachineParams<S extends string, C, E extends { type: string }>
   initialState: S;
   /** 状态机上下文，包含权限、业务属性等信息 */
   ctx: C;
-  /** 转移表：从状态到事件处理的映射 Record<状态, Record<事件类型, 转移配置>> */
-  transitions: Record<S, Record<E['type'], MachineTransition<S, C, E>>>;
+  /** 转移表：从状态到事件处理的映射 Record<状态, Partial<Record<事件类型, 转移配置>>> */
+  transitions: Record<S, Partial<Record<E['type'], MachineTransition<S, C, E>>>>;
 }
 
 /**
@@ -76,6 +76,13 @@ export function useStateMachine<S extends string, C, E extends { type: string }>
     const map = transitions[state] || {};
     return Object.keys(map).map((type) => {
       const t = map[type as E['type']];
+      if (!t) {
+        return {
+          type,
+          enabled: false,
+          reason: '当前状态不支持该操作',
+        };
+      }
       const guardResult = t.guard ? t.guard(ctx) : true;
 
       return {

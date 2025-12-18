@@ -1,10 +1,27 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { __getDB, __setDB } from '../route';
+import { canTransition } from '@/features/orders/domain/stateMachine';
+import { canDelete } from '@/features/orders/domain/rules';
 
 type BatchAction = { action: 'cancel' | 'delete'; ids: string[] };
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json()) as BatchAction;
+  let body: BatchAction;
+  try {
+    const parsed: unknown = await req.json();
+    if (!parsed || typeof parsed !== 'object') {
+      return NextResponse.json({ error: 'InvalidRequest', message: '请求体不是有效的 JSON' }, { status: 400 });
+    }
+    const p = parsed as Partial<BatchAction>;
+    if ((p.action !== 'cancel' && p.action !== 'delete') || !Array.isArray(p.ids)) {
+      return NextResponse.json({ error: 'InvalidRequest', message: '请求参数不正确' }, { status: 400 });
+    }
+    const ids = p.ids.filter((x): x is string => typeof x === 'string' && x.trim().length > 0);
+    body = { action: p.action, ids };
+  } catch {
+    return NextResponse.json({ error: 'InvalidRequest', message: '请求体不是有效的 JSON' }, { status: 400 });
+  }
+
   const db = __getDB();
 
   const successIds: string[] = [];
@@ -20,7 +37,11 @@ export async function POST(req: NextRequest) {
         continue;
       }
       const o = next[idx];
-      if (o.status !== 'pending') {
+      const guard = canTransition(o.status, 'CANCEL', {
+        order: { id: o.id, userId: o.userId, amount: o.amount, status: o.status },
+        role: 'operator',
+      });
+      if (guard !== true) {
         skippedIds.push(id);
         continue;
       }
@@ -32,7 +53,6 @@ export async function POST(req: NextRequest) {
   }
 
   if (body.action === 'delete') {
-    // only allowed for cancelled/completed/refunded
     const next = db.slice();
     for (const id of body.ids) {
       const idx = next.findIndex((o) => o.id === id);
@@ -41,7 +61,7 @@ export async function POST(req: NextRequest) {
         continue;
       }
       const o = next[idx];
-      if (!['cancelled', 'completed', 'refunded'].includes(o.status)) {
+      if (canDelete(o) !== true) {
         skippedIds.push(id);
         continue;
       }
@@ -52,5 +72,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ successIds, skippedIds, failed });
   }
 
-  return NextResponse.json({ message: 'Invalid action' }, { status: 400 });
+  return NextResponse.json({ error: 'InvalidRequest', message: '无效的 action' }, { status: 400 });
 }

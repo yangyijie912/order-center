@@ -3,6 +3,8 @@ import type { Order, OrderStatus } from './types';
 // 操作类型定义
 export type OrderAction = 'VIEW_DETAIL' | 'CANCEL' | 'DELETE' | 'REFUND';
 
+export type RuleResult = true | { ok: false; reason: string };
+
 // 基于订单状态定义每种动作是否允许执行
 // 使用 Partial<Record<OrderStatus, ...>> 来兼容新增的异常/中间态
 const ACTIONS_BY_STATUS: Partial<Record<OrderStatus, Record<OrderAction, boolean>>> = {
@@ -29,6 +31,15 @@ export function canAction(status: OrderStatus, action: OrderAction): boolean {
  */
 export function canActionOnOrder(order: Order, action: OrderAction): boolean {
   return canAction(order.status, action);
+}
+
+/**
+ * 删除是 UI Action（不进状态机），但删除条件需要统一收口。
+ */
+export function canDelete(order: Order): RuleResult {
+  const ok = canActionOnOrder(order, 'DELETE');
+  if (ok) return true;
+  return { ok: false, reason: '当前状态不允许删除订单' };
 }
 
 /**

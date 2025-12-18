@@ -1,4 +1,4 @@
-import type { OrderListQuery, OrderListResponse } from '../domain/types';
+import type { OrderListQuery, OrderListResponse, OrderStatus } from '../domain/types';
 
 /**
  * 将 `OrderListQuery` 转换为查询字符串并调用后端 `/api/orders` 获取列表
@@ -91,10 +91,22 @@ export async function batchAction(
  * 支付订单（模拟）
  * @param id - 订单 ID
  */
-export async function payOrder(id: string): Promise<{ success: true }> {
+export async function payOrder(
+  id: string
+): Promise<{ next: Extract<OrderStatus, 'paid' | 'paying' | 'payment_failed'>; message?: string }> {
   const res = await fetch(`/api/orders/${encodeURIComponent(id)}/pay`, { method: 'POST' });
-  if (!res.ok) throw new Error(`Pay failed: ${res.status}`);
-  return (await res.json()) as { success: true };
+  const body: unknown = await res.json().catch(() => ({}));
+
+  const message =
+    body && typeof body === 'object' && 'message' in (body as Record<string, unknown>)
+      ? String((body as Record<string, unknown>).message)
+      : undefined;
+
+  if (res.status === 200) return { next: 'paid', message };
+  if (res.status === 202) return { next: 'paying', message };
+  if (res.status === 402) return { next: 'payment_failed', message };
+
+  throw new Error(message ?? `Pay failed: ${res.status}`);
 }
 
 /**

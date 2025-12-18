@@ -8,10 +8,58 @@ declare global {
   }
 }
 
-const STATUSES: OrderStatus[] = ['pending', 'paid', 'shipped', 'completed', 'cancelled', 'refunded'];
+const STATUSES: OrderStatus[] = [
+  'pending',
+  'paid',
+  'paying',
+  'payment_failed',
+  'shipped',
+  'completed',
+  'cancelled',
+  'refunded',
+];
 
 // 模拟“数据库”——注意：dev 热更新/无服务器环境可能会重置
 let DB: Order[] | undefined = globalThis.__ORDER_DB__;
+
+function shouldResolvePaying(o: Order, nowMs: number, resolveAfterMs: number): boolean {
+  if (o.status !== 'paying') return false;
+  const t = new Date(o.updatedAt).getTime();
+  if (Number.isNaN(t)) return true;
+  return nowMs - t >= resolveAfterMs;
+}
+
+function pickFinalStatusDeterministic(o: Order): Extract<OrderStatus, 'paid' | 'payment_failed'> {
+  const s = `${o.id}|${o.updatedAt}`;
+  let hash = 0;
+  for (let i = 0; i < s.length; i++) {
+    hash = (hash * 31 + s.charCodeAt(i)) >>> 0;
+  }
+  return hash % 2 === 0 ? 'paid' : 'payment_failed';
+}
+
+export function __settlePayingOrders(db: Order[], opts?: { resolveAfterMs?: number; nowMs?: number }): Order[] {
+  const nowMs = opts?.nowMs ?? Date.now();
+  const resolveAfterMs = opts?.resolveAfterMs ?? 5000;
+
+  let changed = false;
+  let next = db;
+
+  for (let i = 0; i < db.length; i++) {
+    const o = db[i];
+    if (!shouldResolvePaying(o, nowMs, resolveAfterMs)) continue;
+
+    if (!changed) {
+      next = db.slice();
+      changed = true;
+    }
+
+    const finalStatus = pickFinalStatusDeterministic(o);
+    next[i] = { ...o, status: finalStatus, updatedAt: new Date(nowMs).toISOString() };
+  }
+
+  return next;
+}
 
 function seed(): Order[] {
   const now = Date.now();
@@ -65,7 +113,12 @@ export async function GET(req: Request) {
   const sortBy = (sp.get('sortBy') ?? 'createdAt') as 'createdAt' | 'amount';
   const sortOrder = (sp.get('sortOrder') ?? 'desc') as 'asc' | 'desc';
 
-  let list = __getDB().slice();
+  // 兜底：若支付模拟器的 setTimeout 未执行，拉列表时也能把 paying 结算到最终态
+  const db = __getDB();
+  const settled = __settlePayingOrders(db);
+  if (settled !== db) __setDB(settled);
+
+  let list = (settled !== db ? settled : db).slice();
 
   // 关键字过滤（支持订单号 / 用户名 / 电话）
   if (keyword) {

@@ -33,6 +33,8 @@ export class OrderEntity {
     const labels: Partial<Record<OrderStatus, string>> = {
       pending: '待付款',
       paid: '已支付',
+      paying: '支付中',
+      payment_failed: '支付失败',
       shipped: '已发货',
       completed: '已完成',
       cancelled: '已取消',
@@ -91,7 +93,7 @@ export class OrderEntity {
    * 触发状态机事件并更新内部状态（会调用 stateMachine 的 effect）
    * - 返回转移结果
    */
-  async next(eventType: OrderEvent['type'], event?: OrderEvent): Promise<{ next: OrderStatus }> {
+  async next(eventType: OrderEvent['type'], event?: OrderEvent): Promise<{ next: OrderStatus; message?: string }> {
     const ctx = this.buildCtx();
     const e: OrderEvent = event ? event : ({ type: eventType } as OrderEvent);
     const result = await transition(this.order.status, e, ctx);

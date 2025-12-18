@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, type ChangeEvent } from 'react';
+import { Suspense, useMemo, useState, type ChangeEvent } from 'react';
 import type { Order } from '@/features/orders/domain/types';
 import { useOrderQuery } from '@/features/orders/hooks/useOrderQuery';
 import { useOrderList } from '@/features/orders/hooks/useOrderList';
@@ -8,6 +8,7 @@ import { useOrderActions } from '@/features/orders/hooks/useOrderActions';
 import { partitionIdsByAction } from '@/features/orders/domain/rules';
 import { batchAction } from '@/features/orders/services/ordersApi';
 import { useOrderSelection } from '@/features/orders/hooks/useOrderSelection';
+import { OrderEntity } from '@/features/orders/domain/order';
 import { OrderFilterBar } from '@/features/orders/components/OrderFilterBar';
 import { OrderTable } from '@/features/orders/components/OrderTable';
 import OrderDetailDrawer from '@/features/orders/components/OrderDetailDrawer';
@@ -30,6 +31,11 @@ function OrdersPageContent() {
   const [shippingNo, setShippingNo] = useState<string>('');
   const [actionLoading, setActionLoading] = useState(false);
 
+  const canConfirmAction = useMemo(() => {
+    if (!activeOrder || !actionType) return false;
+    return new OrderEntity(activeOrder).can(actionType);
+  }, [activeOrder, actionType]);
+
   // 查看详情
   function handleViewDetail(o: Order) {
     setDetailOrder(o);
@@ -45,8 +51,20 @@ function OrdersPageContent() {
   // 批量取消
   async function handleBatchCancel() {
     if (selectedIds.length === 0) return;
-    // 先在客户端按规则过滤出允许取消的 id，避免无谓请求
-    const { allowedIds, skippedIds } = partitionIdsByAction(orders, selectedIds, 'cancel');
+    // 先在客户端按状态机过滤出允许取消的 id，避免无谓请求
+    const allowedIds: string[] = [];
+    const skippedIds: string[] = [];
+    const byId = new Map(orders.map((o) => [o.id, o] as const));
+
+    for (const id of selectedIds) {
+      const o = byId.get(id);
+      if (!o) {
+        skippedIds.push(id);
+        continue;
+      }
+      const ok = new OrderEntity(o).can('CANCEL');
+      (ok ? allowedIds : skippedIds).push(id);
+    }
 
     if (allowedIds.length === 0) {
       Toast.info(`没有可取消的订单（跳过 ${skippedIds.length} 条）`);
@@ -238,14 +256,7 @@ function OrdersPageContent() {
             <Button
               variant="primary"
               loading={actionLoading}
-              disabled={
-                actionLoading ||
-                (actionType === 'PAY'
-                  ? activeOrder?.status !== 'pending'
-                  : actionType === 'REFUND'
-                  ? activeOrder?.status !== 'paid'
-                  : activeOrder?.status !== 'paid')
-              }
+              disabled={actionLoading || !canConfirmAction}
               onClick={async () => {
                 if (!activeOrder || !actionType) return;
                 setActionLoading(true);

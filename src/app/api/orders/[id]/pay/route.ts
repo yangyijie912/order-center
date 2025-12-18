@@ -28,13 +28,19 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     // 使用模拟器决定支付结果（演示用）
     const result = simulatePayment(id);
     if (result === 'paid') {
-      return NextResponse.json({ success: true });
+      db[idx] = { ...o, status: 'paid', updatedAt: new Date().toISOString() };
+      __setDB(db);
+      return NextResponse.json({ success: true, message: '支付成功' });
     }
     if (result === 'payment_failed') {
+      db[idx] = { ...o, status: 'payment_failed', updatedAt: new Date().toISOString() };
+      __setDB(db);
       // 返回 402 表示支付失败（非 2xx），方便前端基于 HTTP 状态判断失败
       return NextResponse.json({ success: false, error: 'payment_failed', message: '支付失败' }, { status: 402 });
     }
     // result === 'paying'：支付处理中，返回 202 表示异步处理中
+    db[idx] = { ...o, status: 'paying', updatedAt: new Date().toISOString() };
+    __setDB(db);
     return NextResponse.json({ success: false, status: 'paying', message: '支付处理中，请稍后刷新' }, { status: 202 });
   } catch (err) {
     console.error('[pay.route] unexpected error:', err);

@@ -66,7 +66,8 @@ export default function OrderDetailDrawer({ open, order, onClose }: Props) {
 }
 
 function getStatusBgColor(status: Order['status']): string {
-  const colors: Record<Order['status'], string> = {
+  // 使用 Partial 避免在添加新状态时必须在此处同步所有值
+  const colors: Partial<Record<Order['status'], string>> = {
     pending: '#fff4e5',
     paid: '#e6f7ff',
     shipped: '#f0f5ff',
@@ -74,11 +75,11 @@ function getStatusBgColor(status: Order['status']): string {
     cancelled: '#f5f5f5',
     refunded: '#fff1f0',
   };
-  return colors[status] || '#fafafa';
+  return colors[status] ?? '#fafafa';
 }
 
 function getStatusTextColor(status: Order['status']): string {
-  const colors: Record<Order['status'], string> = {
+  const colors: Partial<Record<Order['status'], string>> = {
     pending: '#b36b00',
     paid: '#096dd9',
     shipped: '#2f54eb',
@@ -86,5 +87,5 @@ function getStatusTextColor(status: Order['status']): string {
     cancelled: '#8c8c8c',
     refunded: '#a8071a',
   };
-  return colors[status] || '#222';
+  return colors[status] ?? '#222';
 }

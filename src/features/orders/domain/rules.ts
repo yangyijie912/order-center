@@ -4,7 +4,8 @@ import type { Order, OrderStatus } from './types';
 export type OrderAction = 'VIEW_DETAIL' | 'CANCEL' | 'DELETE' | 'REFUND';
 
 // 基于订单状态定义每种动作是否允许执行
-const ACTIONS_BY_STATUS: Record<OrderStatus, Record<OrderAction, boolean>> = {
+// 使用 Partial<Record<OrderStatus, ...>> 来兼容新增的异常/中间态
+const ACTIONS_BY_STATUS: Partial<Record<OrderStatus, Record<OrderAction, boolean>>> = {
   pending: { VIEW_DETAIL: true, CANCEL: true, DELETE: false, REFUND: false },
   paid: { VIEW_DETAIL: true, CANCEL: false, DELETE: false, REFUND: true },
   shipped: { VIEW_DETAIL: true, CANCEL: false, DELETE: false, REFUND: true },
@@ -17,7 +18,10 @@ const ACTIONS_BY_STATUS: Record<OrderStatus, Record<OrderAction, boolean>> = {
  * 判断某个状态下是否允许某操作
  */
 export function canAction(status: OrderStatus, action: OrderAction): boolean {
-  return ACTIONS_BY_STATUS[status][action];
+  // 对未声明的状态采用保守策略：仅允许查看详情
+  const r = ACTIONS_BY_STATUS[status];
+  if (!r) return action === 'VIEW_DETAIL';
+  return r[action];
 }
 
 /**

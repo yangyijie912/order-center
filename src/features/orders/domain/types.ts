@@ -1,5 +1,25 @@
 // 订单状态枚举（字符串字面量类型）
-export type OrderStatus = 'pending' | 'paid' | 'shipped' | 'completed' | 'cancelled' | 'refunded';
+// 扩展订单状态，包含常规状态与异常/回退状态
+// - 常规状态：pending, paid, shipped, completed, cancelled, refunded
+// - 异常/回退状态：paying（支付中）、payment_failed（支付失败）
+export type OrderStatus =
+  | 'pending'
+  | 'paid'
+  | 'shipped'
+  | 'completed'
+  | 'cancelled'
+  | 'refunded'
+  // 异常及中间态
+  | 'paying'
+  | 'payment_failed';
+//   | 'unknown'
+//   | 'needs_review'
+//   | 'on_hold'
+//   | 'awaiting_stock'
+//   | 'shipping_pending'
+//   | 'fraud_review'
+//   | 'expired'
+//   | 'manual_override';
 
 // 订单数据结构定义
 export type Order = {

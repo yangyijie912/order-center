@@ -29,7 +29,8 @@ export class OrderEntity {
    * 简单的本地化状态标签（UI 可覆盖或扩展）
    */
   statusLabel(): string {
-    const labels: Record<OrderStatus, string> = {
+    // 使用 Partial 避免每次扩展 OrderStatus 都需要在这里同步
+    const labels: Partial<Record<OrderStatus, string>> = {
       pending: '待付款',
       paid: '已支付',
       shipped: '已发货',

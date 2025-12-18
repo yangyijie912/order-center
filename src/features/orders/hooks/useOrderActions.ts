@@ -7,7 +7,7 @@ import { deleteOrder } from '../services/ordersApi';
 import { OrderEntity } from '../domain/order';
 import type { UIActionKey } from '../ui/uiActions';
 
-export type ActionResult = { ok: boolean; message?: string };
+export type ActionResult = { ok: boolean; message?: string; status?: string };
 
 /**
  * useOrderActions
@@ -86,9 +86,39 @@ export function useOrderActions(): UseOrderActionsReturn {
         }
       case 'PAY':
         try {
-          const entity = new OrderEntity(order);
-          await entity.next('PAY');
-          return { ok: true };
+          // 直接调用后端支付接口，按 HTTP 状态处理：
+          // 200 - 支付成功
+          // 202 - 支付处理中（paying）
+          // 402 - 支付失败（可重试）
+          const res = await fetch(`/api/orders/${encodeURIComponent(order.id)}/pay`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            cache: 'no-store',
+          });
+
+          const body: unknown = await res.json().catch(() => ({}));
+
+          const bodyMessage =
+            body && typeof body === 'object' && 'message' in (body as Record<string, unknown>)
+              ? String((body as Record<string, unknown>).message)
+              : undefined;
+
+          if (res.status === 200) {
+            return { ok: true };
+          }
+
+          if (res.status === 202) {
+            // 支付处理中：返回提示但不关闭弹窗，允许用户手动刷新或等待后台回调
+            return { ok: false, message: bodyMessage ?? '支付处理中', status: 'paying' };
+          }
+
+          if (res.status === 402) {
+            // 支付失败：应向用户展示错误并允许重试（不要关闭弹窗）
+            return { ok: false, message: bodyMessage ?? '支付失败', status: 'failed' };
+          }
+
+          // 其他非 2xx：返回错误信息
+          return { ok: false, message: bodyMessage ?? `支付请求失败: ${res.status}` };
         } catch (e) {
           const msg = e instanceof Error ? e.message : '支付失败';
           return { ok: false, message: msg };

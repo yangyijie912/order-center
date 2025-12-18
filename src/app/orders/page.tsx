@@ -289,17 +289,37 @@ function OrdersPageContent() {
                 setActionLoading(true);
                 try {
                   if (actionType === 'PAY') {
-                    await performAction('PAY', activeOrder);
-                    Toast.success('支付成功');
+                    const res = await performAction('PAY', activeOrder);
+                    if (res.ok) {
+                      Toast.success('支付成功');
+                      setActionModalOpen(false);
+                      refresh();
+                    } else if (res.status === 'paying') {
+                      Toast.info(res.message ?? '支付处理中，请稍后刷新');
+                      // 不关闭弹窗，允许用户等待或手动刷新
+                    } else {
+                      // 支付失败：展示错误并保留弹窗以便重试
+                      Toast.error(res.message ?? '支付失败，请重试');
+                    }
                   } else if (actionType === 'REFUND') {
-                    await performAction('REFUND', activeOrder, { reason: refundReason });
-                    Toast.success('退款成功');
+                    const res = await performAction('REFUND', activeOrder, { reason: refundReason });
+                    if (res.ok) {
+                      Toast.success('退款成功');
+                      setActionModalOpen(false);
+                      refresh();
+                    } else {
+                      Toast.error(res.message ?? '退款失败');
+                    }
                   } else if (actionType === 'SHIP') {
-                    await performAction('SHIP', activeOrder, { trackingNo: shippingNo });
-                    Toast.success('发货成功');
+                    const res = await performAction('SHIP', activeOrder, { trackingNo: shippingNo });
+                    if (res.ok) {
+                      Toast.success('发货成功');
+                      setActionModalOpen(false);
+                      refresh();
+                    } else {
+                      Toast.error(res.message ?? '发货失败');
+                    }
                   }
-                  setActionModalOpen(false);
-                  refresh();
                 } catch (e: unknown) {
                   const msg = e instanceof Error ? e.message : String(e ?? '操作失败');
                   Toast.error(msg);

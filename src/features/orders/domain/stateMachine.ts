@@ -133,6 +133,28 @@ export const orderTransitions: Record<OrderStatus, Record<string, Transition>> =
   cancelled: {},
   // 已退款：终态，无后续操作
   refunded: {},
+  // 支付中：外部支付网关处理中（中间态），通常由回调或超时任务驱动到 paid/payment_failed
+  paying: {},
+  // 支付失败：可以重试支付或取消
+  payment_failed: {
+    PAY: { target: 'paid', effect: effects.PAY },
+    CANCEL: { target: 'cancelled', effect: effects.CANCEL },
+  },
+  // 未知状态：需要人工介入/审查
+  //   unknown: {},
+  // 需要人工审核的状态（风控或数据异常）
+  //   needs_review: {},
+  // 阻塞类状态：等待补货或人工处理
+  //   on_hold: {},
+  //   awaiting_stock: {},
+  // 发货信息待保存：状态已逻辑上为已发货但运单未落实
+  //   shipping_pending: {},
+  // 风控拦截，需要人工审核
+  //   fraud_review: {},
+  // 过期（例如超时未支付）
+  //   expired: {},
+  // 人工覆盖或锁定，阻止自动流转
+  //   manual_override: {},
 };
 
 /**
@@ -144,6 +166,21 @@ export const orderTransitions: Record<OrderStatus, Record<string, Transition>> =
  * @returns 允许返回 true，否则返回包含拒绝原因的对象
  */
 export function can(status: OrderStatus, eventType: OrderEvent['type'], ctx: OrderContext): GuardResult {
+  // 保持向后兼容，实现为对 canTransition 的简短代理
+  return canTransition(status, eventType, ctx);
+}
+
+/**
+ * 更严格的转移校验：包含对未知/异常状态的处理
+ * - 如果当前状态未在转移表中定义，返回拒绝并建议人工审查
+ * - 否则按正常规则返回是否允许
+ */
+export function canTransition(status: OrderStatus, eventType: OrderEvent['type'], ctx: OrderContext): GuardResult {
+  // 如果状态没有在定义的状态机表中出现，则视为异常状态
+  if (!Object.prototype.hasOwnProperty.call(orderTransitions, status)) {
+    return { ok: false, reason: '订单状态异常，需要人工介入' };
+  }
+
   const t = orderTransitions[status]?.[eventType];
   if (!t) return { ok: false, reason: '当前状态不支持该操作' };
   return t.guard ? t.guard(ctx) : true;

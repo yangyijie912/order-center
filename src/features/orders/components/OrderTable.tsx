@@ -106,14 +106,13 @@ export function OrderTable(props: {
                 onAction(key as UIActionKey, o);
               };
 
+              // 优先从 UI_ACTIONS 的 hex 配置读取（十六进制），若存在则通过 style 应用文本色
+              type ActionDef = (typeof UI_ACTIONS)[UIActionKey];
+              const actionDef = def as ActionDef;
+              const color = actionDef.color;
+
               const btn = (
-                <Button
-                  key={key}
-                  size="small"
-                  variant="link"
-                  color={key === 'DELETE' || key === 'REFUND' ? 'danger' : undefined}
-                  disabled={!enabled}
-                >
+                <Button key={key} size="small" variant="link" color={color ?? undefined} disabled={!enabled}>
                   {def?.label ?? key}
                 </Button>
               );
@@ -135,13 +134,7 @@ export function OrderTable(props: {
 
               return (
                 <span key={key}>
-                  <Button
-                    size="small"
-                    variant="link"
-                    color={key === 'DELETE' ? 'danger' : undefined}
-                    disabled={!enabled}
-                    onClick={onClick}
-                  >
+                  <Button size="small" variant="link" color={color ?? undefined} disabled={!enabled} onClick={onClick}>
                     {def?.label ?? key}
                   </Button>
                 </span>

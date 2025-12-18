@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useMemo, useState, type ChangeEvent } from 'react';
+import { Suspense, useState, type ChangeEvent } from 'react';
 import type { Order } from '@/features/orders/domain/types';
 import { useOrderQuery } from '@/features/orders/hooks/useOrderQuery';
 import { useOrderList } from '@/features/orders/hooks/useOrderList';
@@ -11,7 +11,7 @@ import { useOrderSelection } from '@/features/orders/hooks/useOrderSelection';
 import { OrderFilterBar } from '@/features/orders/components/OrderFilterBar';
 import { OrderTable } from '@/features/orders/components/OrderTable';
 import OrderDetailDrawer from '@/features/orders/components/OrderDetailDrawer';
-import { Button, Popconfirm, Toast, Modal, Input } from 'beaver-ui';
+import { Button, Popconfirm, Toast, Modal, Input, Alert } from 'beaver-ui';
 
 function OrdersPageContent() {
   const { query, setQuery, resetQuery, refresh, reloadKey } = useOrderQuery();
@@ -29,11 +29,6 @@ function OrdersPageContent() {
   const [refundReason, setRefundReason] = useState<string>('');
   const [shippingNo, setShippingNo] = useState<string>('');
   const [actionLoading, setActionLoading] = useState(false);
-
-  const totalPages = useMemo(() => {
-    if (!data) return 1;
-    return Math.max(1, Math.ceil(data.total / data.pageSize));
-  }, [data]);
 
   // 查看详情
   function handleViewDetail(o: Order) {
@@ -127,29 +122,11 @@ function OrdersPageContent() {
 
       <div style={{ height: 16 }} />
 
-      {/* 错误提示 */}
+      {/* 错误提示（使用 beaver-ui 的 Alert） */}
       {error ? (
-        <div
-          role="alert"
-          style={{
-            padding: 12,
-            border: '1px solid #fca5a5',
-            borderRadius: 8,
-            color: '#991b1b',
-            marginBottom: 16,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span>⚠️</span>
-            <div style={{ fontSize: 14 }}>
-              <div style={{ fontWeight: 600, marginBottom: 4 }}>请求失败</div>
-              <div style={{ maxWidth: 800, wordBreak: 'break-word', color: '#701a1a' }}>{String(error)}</div>
-            </div>
-          </div>
-          <div>
+        <div style={{ marginBottom: 16 }}>
+          <Alert type="error" title="请求失败" message={String(error)} />
+          <div style={{ marginTop: 8 }}>
             <Button size="small" onClick={() => refresh()} variant="link">
               重试
             </Button>
@@ -244,22 +221,7 @@ function OrdersPageContent() {
         }
       />
 
-      {/* 分页信息 */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginTop: 16,
-          fontSize: 13,
-          color: '#666',
-        }}
-      >
-        <span>
-          共 {data?.total ?? 0} 条，当前 {data?.page ?? 1} / {totalPages}
-        </span>
-        <div />
-      </div>
+      {/* 分页信息由表格内置分页器展示（showTotal） */}
 
       {/* 详情抽屉 */}
       <OrderDetailDrawer open={detailOpen} order={detailOrder} onClose={handleCloseDetail} />

@@ -160,6 +160,10 @@ export function OrderTable(props: {
         showQuickJumper?: boolean;
         showSizeChanger?: boolean;
         pageSizeOptions?: number[];
+        /** 是否展示总数 */
+        showTotal?: boolean;
+        /** 本地化配置，支持 total 格式化 */
+        locale?: { total?: (n: number) => string };
         onShowSizeChange?: (current: number, size: number) => void;
       } =
     pagination === false
@@ -175,6 +179,10 @@ export function OrderTable(props: {
           showSizeChanger: true,
           // 可选的每页显示条数（数字类型）
           pageSizeOptions: [10, 20, 50, 100],
+          // 分页器显示总数（由 beaver-ui Pagination 使用）
+          showTotal: true,
+          // 使用 locale.total 格式化总数文本
+          locale: { total: (n: number) => `共 ${n} 条` },
           // 当用户改变每页数量时，重置到第一页并触发外部回调
           onShowSizeChange: (_current: number, size: number) => {
             pagination?.onChange?.(1, size);
@@ -192,7 +200,8 @@ export function OrderTable(props: {
         selectedKeys={selectedKeys}
         onSelectionChange={onSelectionChange}
         pagination={tablePagination}
-        emptyText={loading ? '加载中...' : '暂无数据'}
+        loading={loading}
+        emptyText={'暂无数据'}
       />
     </div>
   );

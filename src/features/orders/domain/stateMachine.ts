@@ -1,6 +1,5 @@
-import type { OrderStatus, Order } from './types';
+import type { OrderStatus } from './types';
 import { cancelOrder } from '../services/ordersApi';
-import { canActionOnOrder } from './rules';
 
 /**
  * 订单状态机定义
@@ -202,65 +201,4 @@ export function getAvailableActions(status: OrderStatus, ctx: OrderContext): Ava
       reason: allowed === true ? undefined : allowed.reason,
     };
   });
-}
-
-/**
- * UI 层动作定义（高层抽象，包含非状态机行为如 DELETE/VIEW）
- * - key: UI 动作标识
- * - label: 按钮文本
- * - eventType?: 对应的状态机事件（如果存在）
- * - confirm?: 可选的确认框配置
- */
-export type UIActionKey = 'VIEW_DETAIL' | 'CANCEL' | 'DELETE' | 'REFUND';
-
-export const UI_ACTIONS: Record<
-  UIActionKey,
-  {
-    label: string;
-    eventType?: OrderEvent['type'];
-    confirm?: { title?: string; description?: string; okText?: string; cancelText?: string; okVariant?: string };
-  }
-> = {
-  VIEW_DETAIL: { label: '详情' },
-  CANCEL: { label: '取消', eventType: 'CANCEL', confirm: { title: '确认取消？', okText: '确定', cancelText: '取消' } },
-  DELETE: { label: '删除', confirm: { title: '确认删除？', okText: '删除', cancelText: '取消', okVariant: 'ghost' } },
-  REFUND: { label: '退款', eventType: 'REFUND', confirm: { title: '确认退款？', okText: '确定', cancelText: '取消' } },
-};
-
-/**
- * 为 UI 返回当前订单可见的动作（包含启用/禁用与原因）
- * - 对应到状态机事件的动作使用 `can` 做权限/规则判断
- * - 非状态机动作（如 DELETE）可使用旧的 rules 判断
- */
-export function getAvailableUIActions(status: OrderStatus, ctx: OrderContext): AvailableAction[] {
-  const actions: AvailableAction[] = [];
-
-  for (const key of Object.keys(UI_ACTIONS) as UIActionKey[]) {
-    const def = UI_ACTIONS[key];
-    if (def.eventType) {
-      const allowed = can(status, def.eventType, ctx);
-      actions.push({ type: key, enabled: allowed === true, reason: allowed === true ? undefined : allowed.reason });
-    } else {
-      // 非状态机事件：退回到基于状态的简单判断（例如 DELETE/VIEW）
-      // 使用旧有规则判断是否允许（基于状态）
-      // 构建 minimal ctx.order for canActionOnOrder
-      const o = ctx.order;
-      // canActionOnOrder expects a full Order; provide a minimal Order object
-      const pseudoOrder: Order = {
-        id: o.id,
-        userId: o.userId,
-        userName: '',
-        amount: o.amount,
-        currency: 'CNY',
-        status: o.status,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        itemsCount: 0,
-      };
-      const ok = canActionOnOrder(pseudoOrder, key === 'DELETE' ? 'DELETE' : 'VIEW_DETAIL');
-      actions.push({ type: key, enabled: !!ok, reason: ok ? undefined : '不可用' });
-    }
-  }
-
-  return actions;
 }

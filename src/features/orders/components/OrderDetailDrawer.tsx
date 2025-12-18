@@ -2,6 +2,7 @@
 
 import React from 'react';
 import type { Order } from '@/features/orders/domain/types';
+import { OrderEntity } from '@/features/orders/domain/order';
 import { Drawer } from 'beaver-ui';
 
 type Props = { open: boolean; order?: Order | null; onClose: () => void };
@@ -29,19 +30,24 @@ export default function OrderDetailDrawer({ open, order, onClose }: Props) {
 
             <strong>状态</strong>
             <div>
-              <span
-                style={{
-                  display: 'inline-block',
-                  padding: '4px 10px',
-                  borderRadius: 6,
-                  fontSize: 12,
-                  fontWeight: 500,
-                  background: getStatusBgColor(order.status),
-                  color: getStatusTextColor(order.status),
-                }}
-              >
-                {getStatusLabel(order.status)}
-              </span>
+              {(() => {
+                const entity = new OrderEntity(order);
+                return (
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      padding: '4px 10px',
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      background: getStatusBgColor(entity.status),
+                      color: getStatusTextColor(entity.status),
+                    }}
+                  >
+                    {entity.statusLabel()}
+                  </span>
+                );
+              })()}
             </div>
 
             <strong>创建时间</strong>
@@ -57,18 +63,6 @@ export default function OrderDetailDrawer({ open, order, onClose }: Props) {
       )}
     </Drawer>
   );
-}
-
-function getStatusLabel(status: Order['status']): string {
-  const labels: Record<Order['status'], string> = {
-    pending: '待支付',
-    paid: '已支付',
-    shipped: '已发货',
-    completed: '已完成',
-    cancelled: '已取消',
-    refunded: '已退款',
-  };
-  return labels[status] || status;
 }
 
 function getStatusBgColor(status: Order['status']): string {

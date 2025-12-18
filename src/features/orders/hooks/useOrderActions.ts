@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import type { Order } from '../domain/types';
 import { deleteOrder } from '../services/ordersApi';
-import type { OrderContext, OrderEvent } from '../domain/stateMachine';
-import { orderTransitions, UIActionKey } from '../domain/stateMachine';
+import { OrderEntity } from '../domain/order';
+import type { UIActionKey } from '../ui/uiActions';
 
 export type ActionResult = { ok: boolean; message?: string };
 
@@ -29,24 +29,8 @@ export function useOrderActions(): UseOrderActionsReturn {
     try {
       setPending((p) => ({ ...p, [key]: true }));
 
-      // 检查转移是否允许
-      const t = orderTransitions[order.status]?.CANCEL;
-      if (!t) {
-        return { ok: false, message: '当前状态不支持取消操作' };
-      }
-
-      // 构建上下文并执行 effect
-      const ctx: OrderContext = {
-        order: {
-          id: order.id,
-          userId: order.userId,
-          amount: order.amount,
-          status: order.status,
-        },
-      };
-      if (t.effect) {
-        await t.effect(ctx, { type: 'CANCEL' } as OrderEvent);
-      }
+      const entity = new OrderEntity(order);
+      await entity.next('CANCEL');
       return { ok: true };
     } catch (e) {
       const msg = e instanceof Error ? e.message : '取消订单失败';
@@ -92,12 +76,8 @@ export function useOrderActions(): UseOrderActionsReturn {
         return await onDelete(order);
       case 'REFUND':
         try {
-          const t = orderTransitions[order.status]?.REFUND;
-          if (!t) return { ok: false, message: '当前状态不支持退款' };
-          const ctx: OrderContext = {
-            order: { id: order.id, userId: order.userId, amount: order.amount, status: order.status },
-          };
-          if (t.effect) await t.effect(ctx, { type: 'REFUND' } as OrderEvent);
+          const entity = new OrderEntity(order);
+          await entity.next('REFUND');
           return { ok: true };
         } catch (e) {
           const msg = e instanceof Error ? e.message : '退款失败';

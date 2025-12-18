@@ -1,7 +1,9 @@
 'use client';
 
 import type { Order } from '../domain/types';
-import { getAvailableUIActions, UI_ACTIONS, type UIActionKey, type OrderContext } from '../domain/stateMachine';
+import { UI_ACTIONS, type UIActionKey } from '../ui/uiActions';
+import { OrderEntity } from '../domain/order';
+import type { OrderEvent } from '../domain/stateMachine';
 import { Button, Table, Popconfirm } from 'beaver-ui';
 
 /**
@@ -51,7 +53,32 @@ export function OrderTable(props: {
       render: (_value: unknown, row: unknown) =>
         `${(row as Order).currency} ${Number((row as Order).amount).toFixed(2)}`,
     },
-    { key: 'status', title: '状态', render: (_value: unknown, row: unknown) => statusTag((row as Order).status) },
+    {
+      key: 'status',
+      title: '状态',
+      render: (_value: unknown, row: unknown) => {
+        const o = row as Order;
+        const entity = new OrderEntity(o);
+        const text = entity.statusLabel();
+        const styleMap: Record<string, React.CSSProperties> = {
+          pending: { background: '#fff4e5', color: '#b36b00' },
+          paid: { background: '#e6f7ff', color: '#096dd9' },
+          shipped: { background: '#f0f5ff', color: '#2f54eb' },
+          completed: { background: '#f6ffed', color: '#237804' },
+          cancelled: { background: '#f5f5f5', color: '#8c8c8c' },
+          refunded: { background: '#fff1f0', color: '#a8071a' },
+        };
+        const base: React.CSSProperties = {
+          display: 'inline-block',
+          padding: '4px 10px',
+          borderRadius: 12,
+          fontSize: 12,
+          fontWeight: 500,
+        };
+        const style = { ...(styleMap[entity.status] ?? { background: '#fafafa', color: '#222' }), ...base };
+        return <span style={style}>{text}</span>;
+      },
+    },
     {
       key: 'createdAt',
       title: '创建时间',
@@ -66,33 +93,35 @@ export function OrderTable(props: {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
           {(() => {
             const o = row as Order;
-            const ctx: OrderContext = { order: { id: o.id, userId: o.userId, amount: o.amount, status: o.status } };
-            const avail = getAvailableUIActions(o.status, ctx);
+            const entity = new OrderEntity(o);
 
-            return avail.map((a) => {
-              const def = UI_ACTIONS[a.type as UIActionKey];
+            return Object.keys(UI_ACTIONS).map((key) => {
+              const def = UI_ACTIONS[key as UIActionKey];
+              const isEvent = !!def.eventType;
+              let enabled = false;
+              if (isEvent && def.eventType) enabled = entity.can(def.eventType as OrderEvent['type']);
+              if (!isEvent) enabled = entity.canUIAction(key);
               const onClick = () => {
-                if (a.type === 'VIEW_DETAIL') return onView(o);
-                onAction(a.type as UIActionKey, o);
+                if (key === 'VIEW_DETAIL') return onView(o);
+                onAction(key as UIActionKey, o);
               };
 
               const btn = (
                 <Button
-                  key={a.type}
+                  key={key}
                   size="small"
                   variant="link"
-                  color={a.type === 'DELETE' ? 'danger' : undefined}
-                  disabled={!a.enabled}
-                  onClick={onClick}
+                  color={key === 'DELETE' ? 'danger' : undefined}
+                  disabled={!enabled}
                 >
-                  {def?.label ?? a.type}
+                  {def?.label ?? key}
                 </Button>
               );
 
               if (def?.confirm) {
                 return (
                   <Popconfirm
-                    key={a.type}
+                    key={key}
                     title={def.confirm.title}
                     description={def.confirm.description ?? `${def.label} ${(o as Order).id}?`}
                     onConfirm={onClick}
@@ -104,7 +133,19 @@ export function OrderTable(props: {
                 );
               }
 
-              return <span key={a.type}>{btn}</span>;
+              return (
+                <span key={key}>
+                  <Button
+                    size="small"
+                    variant="link"
+                    color={key === 'DELETE' ? 'danger' : undefined}
+                    disabled={!enabled}
+                    onClick={onClick}
+                  >
+                    {def?.label ?? key}
+                  </Button>
+                </span>
+              );
             });
           })()}
         </div>
@@ -161,49 +202,4 @@ export function OrderTable(props: {
       />
     </div>
   );
-}
-
-// 将订单状态的枚举值映射为中文标签
-function statusLabel(s: Order['status']) {
-  switch (s) {
-    case 'pending':
-      return '待支付';
-    case 'paid':
-      return '已支付';
-    case 'shipped':
-      return '已发货';
-    case 'completed':
-      return '已完成';
-    case 'cancelled':
-      return '已取消';
-    case 'refunded':
-      return '已退款';
-    default:
-      return s;
-  }
-}
-
-// 返回带颜色的状态标签
-function statusTag(s: Order['status']) {
-  const text = statusLabel(s);
-  const styleMap: Record<string, React.CSSProperties> = {
-    pending: { background: '#fff4e5', color: '#b36b00' },
-    paid: { background: '#e6f7ff', color: '#096dd9' },
-    shipped: { background: '#f0f5ff', color: '#2f54eb' },
-    completed: { background: '#f6ffed', color: '#237804' },
-    cancelled: { background: '#f5f5f5', color: '#8c8c8c' },
-    refunded: { background: '#fff1f0', color: '#a8071a' },
-  };
-
-  const base: React.CSSProperties = {
-    display: 'inline-block',
-    padding: '4px 10px',
-    borderRadius: 12,
-    fontSize: 12,
-    fontWeight: 500,
-  };
-
-  const style = { ...(styleMap[s] ?? { background: '#fafafa', color: '#222' }), ...base };
-
-  return <span style={style}>{text}</span>;
 }

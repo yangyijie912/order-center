@@ -1,7 +1,7 @@
 'use client';
 
 import type { Order } from '../domain/types';
-import { canActionOnOrder } from '../domain/rules';
+import { getAvailableUIActions, UI_ACTIONS, type UIActionKey, type OrderContext } from '../domain/stateMachine';
 import { Button, Table, Popconfirm } from 'beaver-ui';
 
 /**
@@ -25,14 +25,13 @@ export function OrderTable(props: {
   selectedKeys?: string[];
   onSelectionChange?: (keys: string[]) => void;
   onView: (o: Order) => void;
-  onCancel: (o: Order) => void;
-  onDelete: (o: Order) => void;
+  onAction: (action: UIActionKey, o: Order) => void;
   // 分页信息与回调（可选）
   pagination?:
     | { total: number; page: number; pageSize: number; onChange?: (page: number, pageSize?: number) => void }
     | false;
 }) {
-  const { orders, loading, selectedKeys = [], onSelectionChange, onView, onCancel, onDelete, pagination } = props;
+  const { orders, loading, selectedKeys = [], onSelectionChange, onView, onAction, pagination } = props;
 
   // beaver-ui Table 的列定义
   type LocalColumn = {
@@ -65,31 +64,49 @@ export function OrderTable(props: {
       align: 'center',
       render: (_value: unknown, row: unknown) => (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-          <Button onClick={() => onView(row as Order)} size="small" variant="link">
-            详情
-          </Button>
-          <Popconfirm
-            title="确认取消？"
-            description={`确认取消订单 ${(row as Order).id}？`}
-            onConfirm={() => onCancel(row as Order)}
-            okText="确定"
-            cancelText="取消"
-          >
-            <Button size="small" variant="link" disabled={!canActionOnOrder(row as Order, 'CANCEL')}>
-              取消
-            </Button>
-          </Popconfirm>
-          <Popconfirm
-            title="确认删除？"
-            description={`确认删除订单 ${(row as Order).id}？此操作不可恢复`}
-            onConfirm={() => onDelete(row as Order)}
-            okText="删除"
-            cancelText="取消"
-          >
-            <Button size="small" variant="link" color="danger" disabled={!canActionOnOrder(row as Order, 'DELETE')}>
-              删除
-            </Button>
-          </Popconfirm>
+          {(() => {
+            const o = row as Order;
+            const ctx: OrderContext = { order: { id: o.id, userId: o.userId, amount: o.amount, status: o.status } };
+            const avail = getAvailableUIActions(o.status, ctx);
+
+            return avail.map((a) => {
+              const def = UI_ACTIONS[a.type as UIActionKey];
+              const onClick = () => {
+                if (a.type === 'VIEW_DETAIL') return onView(o);
+                onAction(a.type as UIActionKey, o);
+              };
+
+              const btn = (
+                <Button
+                  key={a.type}
+                  size="small"
+                  variant="link"
+                  color={a.type === 'DELETE' ? 'danger' : undefined}
+                  disabled={!a.enabled}
+                  onClick={onClick}
+                >
+                  {def?.label ?? a.type}
+                </Button>
+              );
+
+              if (def?.confirm) {
+                return (
+                  <Popconfirm
+                    key={a.type}
+                    title={def.confirm.title}
+                    description={def.confirm.description ?? `${def.label} ${(o as Order).id}?`}
+                    onConfirm={onClick}
+                    okText={def.confirm.okText}
+                    cancelText={def.confirm.cancelText}
+                  >
+                    {btn}
+                  </Popconfirm>
+                );
+              }
+
+              return <span key={a.type}>{btn}</span>;
+            });
+          })()}
         </div>
       ),
     },

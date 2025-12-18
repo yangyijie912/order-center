@@ -16,7 +16,7 @@ import { Button, Popconfirm, Toast } from 'beaver-ui';
 function OrdersPageContent() {
   const { query, setQuery, resetQuery, refresh, reloadKey } = useOrderQuery();
   const { data, loading, error } = useOrderList(query, reloadKey);
-  const { onCancel, onDelete } = useOrderActions();
+  const { performAction } = useOrderActions();
   const { selectedIds, clear, toggle } = useOrderSelection();
 
   // 详情抽屉状态
@@ -38,28 +38,6 @@ function OrdersPageContent() {
   function handleCloseDetail() {
     setDetailOpen(false);
     setTimeout(() => setDetailOrder(null), 300);
-  }
-
-  // 取消订单处理
-  async function handleCancel(o: Order) {
-    const res = await onCancel(o);
-    if (!res.ok) {
-      Toast.error(res.message ?? '取消失败');
-    } else {
-      Toast.success('取消成功');
-    }
-    refresh();
-  }
-
-  // 删除订单处理
-  async function handleDelete(o: Order) {
-    const res = await onDelete(o);
-    if (!res.ok) {
-      Toast.error(res.message ?? '删除失败');
-    } else {
-      Toast.success('删除成功');
-    }
-    refresh();
   }
 
   // 批量取消
@@ -228,8 +206,18 @@ function OrdersPageContent() {
           keys.forEach((k) => toggle(k));
         }}
         onView={handleViewDetail}
-        onCancel={handleCancel}
-        onDelete={handleDelete}
+        onAction={async (action, o) => {
+          if (action === 'VIEW_DETAIL') return handleViewDetail(o);
+          const res = await performAction(action, o);
+          if (!res.ok) {
+            Toast.error(res.message ?? '操作失败');
+          } else {
+            if (action === 'DELETE') Toast.success('删除成功');
+            if (action === 'CANCEL') Toast.success('取消成功');
+            if (action === 'REFUND') Toast.success('退款成功');
+          }
+          refresh();
+        }}
         pagination={
           data
             ? {

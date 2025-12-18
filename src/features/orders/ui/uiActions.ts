@@ -3,7 +3,7 @@ import type { OrderContext, OrderEvent } from '../domain/stateMachine';
 import { can as canTransition } from '../domain/stateMachine';
 import { canActionOnOrder } from '../domain/rules';
 
-export type UIActionKey = 'VIEW_DETAIL' | 'CANCEL' | 'DELETE' | 'REFUND';
+export type UIActionKey = 'VIEW_DETAIL' | 'CANCEL' | 'DELETE' | 'REFUND' | 'PAY';
 
 export const UI_ACTIONS: Record<
   UIActionKey,
@@ -14,9 +14,10 @@ export const UI_ACTIONS: Record<
   }
 > = {
   VIEW_DETAIL: { label: '详情' },
+  PAY: { label: '支付', eventType: 'PAY' },
   CANCEL: { label: '取消', eventType: 'CANCEL', confirm: { title: '确认取消？', okText: '确定', cancelText: '取消' } },
   DELETE: { label: '删除', confirm: { title: '确认删除？', okText: '删除', cancelText: '取消', okVariant: 'ghost' } },
-  REFUND: { label: '退款', eventType: 'REFUND', confirm: { title: '确认退款？', okText: '确定', cancelText: '取消' } },
+  REFUND: { label: '退款', eventType: 'REFUND' },
 };
 
 export type AvailableAction = { type: string; enabled: boolean; reason?: string };

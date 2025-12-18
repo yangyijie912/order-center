@@ -1,5 +1,5 @@
 import type { OrderStatus } from './types';
-import { cancelOrder } from '../services/ordersApi';
+import { cancelOrder, payOrder, refundOrder } from '../services/ordersApi';
 
 /**
  * 订单状态机定义
@@ -74,8 +74,8 @@ type Transition = {
 export const effects = {
   /** 支付处理：订单从 pending 转移到 paid */
   PAY: async (ctx: OrderContext, _event: OrderEvent): Promise<void> => {
-    // TODO: 调用真实支付 API
-    console.log(`[PAY] Order ${ctx.order.id}, Amount: ${ctx.order.amount}`);
+    // 调用支付 API
+    await payOrder(ctx.order.id);
   },
 
   /** 取消处理：调用后端取消接口 */
@@ -98,8 +98,8 @@ export const effects = {
 
   /** 退款处理：订单从 paid 转移到 refunded */
   REFUND: async (ctx: OrderContext, _event: OrderEvent): Promise<void> => {
-    // TODO: 调用真实退款 API
-    console.log(`[REFUND] Order ${ctx.order.id}, Amount: ${ctx.order.amount}`);
+    // 调用退款 API
+    await refundOrder(ctx.order.id);
   },
 };
 
@@ -118,7 +118,7 @@ export const orderTransitions: Record<OrderStatus, Record<string, Transition>> =
     },
     REFUND: {
       target: 'refunded',
-      guard: (ctx) => (ctx.isRefundable ? true : { ok: false, reason: '该订单不可退款' }),
+      guard: (ctx) => (ctx.isRefundable ?? true ? true : { ok: false, reason: '该订单不可退款' }),
       effect: effects.REFUND,
     },
   },

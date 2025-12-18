@@ -111,7 +111,7 @@ export function OrderTable(props: {
                   key={key}
                   size="small"
                   variant="link"
-                  color={key === 'DELETE' ? 'danger' : undefined}
+                  color={key === 'DELETE' || key === 'REFUND' ? 'danger' : undefined}
                   disabled={!enabled}
                 >
                   {def?.label ?? key}

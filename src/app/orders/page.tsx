@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useMemo, useState, type ChangeEvent } from 'react';
 import type { Order } from '@/features/orders/domain/types';
 import { useOrderQuery } from '@/features/orders/hooks/useOrderQuery';
 import { useOrderList } from '@/features/orders/hooks/useOrderList';
@@ -11,7 +11,7 @@ import { useOrderSelection } from '@/features/orders/hooks/useOrderSelection';
 import { OrderFilterBar } from '@/features/orders/components/OrderFilterBar';
 import { OrderTable } from '@/features/orders/components/OrderTable';
 import OrderDetailDrawer from '@/features/orders/components/OrderDetailDrawer';
-import { Button, Popconfirm, Toast } from 'beaver-ui';
+import { Button, Popconfirm, Toast, Modal, Input } from 'beaver-ui';
 
 function OrdersPageContent() {
   const { query, setQuery, resetQuery, refresh, reloadKey } = useOrderQuery();
@@ -22,6 +22,12 @@ function OrdersPageContent() {
   // 详情抽屉状态
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailOrder, setDetailOrder] = useState<Order | null>(null);
+  // 支付/退款 Modal 状态
+  const [actionModalOpen, setActionModalOpen] = useState(false);
+  const [actionType, setActionType] = useState<'PAY' | 'REFUND' | null>(null);
+  const [activeOrder, setActiveOrder] = useState<Order | null>(null);
+  const [refundReason, setRefundReason] = useState<string>('');
+  const [actionLoading, setActionLoading] = useState(false);
 
   const totalPages = useMemo(() => {
     if (!data) return 1;
@@ -208,13 +214,19 @@ function OrdersPageContent() {
         onView={handleViewDetail}
         onAction={async (action, o) => {
           if (action === 'VIEW_DETAIL') return handleViewDetail(o);
+          if (action === 'PAY' || action === 'REFUND') {
+            setActiveOrder(o);
+            setActionType(action as 'PAY' | 'REFUND');
+            setRefundReason('');
+            setActionModalOpen(true);
+            return;
+          }
           const res = await performAction(action, o);
           if (!res.ok) {
             Toast.error(res.message ?? '操作失败');
           } else {
             if (action === 'DELETE') Toast.success('删除成功');
             if (action === 'CANCEL') Toast.success('取消成功');
-            if (action === 'REFUND') Toast.success('退款成功');
           }
           refresh();
         }}
@@ -249,6 +261,72 @@ function OrdersPageContent() {
 
       {/* 详情抽屉 */}
       <OrderDetailDrawer open={detailOpen} order={detailOrder} onClose={handleCloseDetail} />
+      {/* 支付/退款 Modal */}
+      <Modal
+        open={actionModalOpen}
+        onClose={() => setActionModalOpen(false)}
+        title={actionType === 'PAY' ? '支付订单' : '退款订单'}
+        footer={
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <Button variant="ghost" onClick={() => setActionModalOpen(false)}>
+              取消
+            </Button>
+            <Button
+              variant="primary"
+              loading={actionLoading}
+              disabled={
+                actionLoading ||
+                (actionType === 'PAY' ? activeOrder?.status !== 'pending' : activeOrder?.status !== 'paid')
+              }
+              onClick={async () => {
+                if (!activeOrder || !actionType) return;
+                setActionLoading(true);
+                try {
+                  if (actionType === 'PAY') {
+                    await performAction('PAY', activeOrder);
+                    Toast.success('支付成功');
+                  } else {
+                    await performAction('REFUND', activeOrder);
+                    Toast.success('退款成功');
+                  }
+                  setActionModalOpen(false);
+                  refresh();
+                } catch (e: unknown) {
+                  const msg = e instanceof Error ? e.message : String(e ?? '操作失败');
+                  Toast.error(msg);
+                } finally {
+                  setActionLoading(false);
+                }
+              }}
+            >
+              {actionType === 'PAY' ? '去支付' : '确认退款'}
+            </Button>
+          </div>
+        }
+      >
+        {!activeOrder ? (
+          <div style={{ padding: 24 }}>未选择订单</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 12 }}>
+            <div>订单：{activeOrder.id}</div>
+            <div>用户：{activeOrder.userName}</div>
+            <div>
+              金额：{activeOrder.amount.toFixed(2)} {activeOrder.currency}
+            </div>
+            <div>当前状态：{activeOrder.status}</div>
+            {actionType === 'REFUND' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ fontSize: 13 }}>退款原因（可选）</label>
+                <Input
+                  value={refundReason}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setRefundReason(e.target.value)}
+                  placeholder="请输入退款原因"
+                />
+              </div>
+            ) : null}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

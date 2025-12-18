@@ -86,3 +86,22 @@ export async function batchAction(
     failed: { id: string; reason: string }[];
   };
 }
+
+/**
+ * 支付订单（模拟）
+ * @param id - 订单 ID
+ */
+export async function payOrder(id: string): Promise<{ success: true }> {
+  const res = await fetch(`/api/orders/${encodeURIComponent(id)}/pay`, { method: 'POST' });
+  if (!res.ok) throw new Error(`Pay failed: ${res.status}`);
+  return (await res.json()) as { success: true };
+}
+
+/**
+ * 退款订单（模拟）
+ */
+export async function refundOrder(id: string): Promise<{ success: true }> {
+  const res = await fetch(`/api/orders/${encodeURIComponent(id)}/refund`, { method: 'POST' });
+  if (!res.ok) throw new Error(`Refund failed: ${res.status}`);
+  return (await res.json()) as { success: true };
+}

@@ -1,5 +1,6 @@
 import type { OrderStatus } from './types';
 import { cancelOrder, payOrder, refundOrder, shipOrder } from '../services/ordersApi';
+import type { Role } from '@/features/auth/types';
 
 /**
  * 订单状态机定义
@@ -39,7 +40,7 @@ export type OrderContext = {
     amount: number;
     status: OrderStatus;
   };
-  role?: 'admin' | 'operator' | 'viewer';
+  role?: Role;
   isRefundable?: boolean;
 };
 
@@ -76,21 +77,21 @@ type Transition = {
 export const effects = {
   /** 支付处理：订单从 pending 转移到 paid */
   PAY: async (ctx: OrderContext, _event: OrderEvent): Promise<EffectResult> => {
-    const r = await payOrder(ctx.order.id);
+    const r = await payOrder(ctx.order.id, { role: ctx.role });
     return { next: r.next, message: r.message };
   },
 
   /** 取消处理：调用后端取消接口 */
   CANCEL: async (ctx: OrderContext, _event: OrderEvent): Promise<void> => {
     // 取消 API
-    await cancelOrder(ctx.order.id);
+    await cancelOrder(ctx.order.id, { role: ctx.role });
   },
 
   /** 发货处理：订单从 paid 转移到 shipped */
   SHIP: async (ctx: OrderContext, _event: OrderEvent): Promise<void> => {
     // 调用发货 API，支持传入运单号
     const trackingNo = (_event as { payload?: { trackingNo?: string } }).payload?.trackingNo;
-    await shipOrder(ctx.order.id, trackingNo);
+    await shipOrder(ctx.order.id, trackingNo, { role: ctx.role });
   },
 
   /** 确认收货处理：订单从 shipped 转移到 completed */
@@ -102,7 +103,7 @@ export const effects = {
   /** 退款处理：订单从 paid 转移到 refunded */
   REFUND: async (ctx: OrderContext, _event: OrderEvent): Promise<void> => {
     // 调用退款 API
-    await refundOrder(ctx.order.id);
+    await refundOrder(ctx.order.id, { role: ctx.role });
   },
 };
 
@@ -117,12 +118,12 @@ export const orderTransitions: Record<OrderStatus, Partial<Record<OrderEvent['ty
   paid: {
     SHIP: {
       target: 'shipped',
-      guard: (ctx) => (ctx.role !== 'viewer' ? true : { ok: false, reason: '无权限发货' }),
+      guard: (ctx) => (ctx.role && ctx.role !== 'viewer' ? true : { ok: false, reason: '无权限发货' }),
       effect: effects.SHIP,
     },
     REFUND: {
       target: 'refunded',
-      guard: (ctx) => (ctx.isRefundable ?? true ? true : { ok: false, reason: '该订单不可退款' }),
+      guard: (ctx) => (ctx.isRefundable === true ? true : { ok: false, reason: '该订单不可退款' }),
       effect: effects.REFUND,
     },
   },

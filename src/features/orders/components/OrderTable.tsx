@@ -3,6 +3,7 @@
 import type { Order } from '../domain/types';
 import { UI_ACTIONS, type UIActionKey } from '../ui/uiActions';
 import { OrderEntity } from '../domain/order';
+import type { Role } from '@/features/auth/types';
 import type { OrderEvent } from '../domain/stateMachine';
 import { Button, Table, Popconfirm } from 'beaver-ui';
 
@@ -24,6 +25,8 @@ import { Button, Table, Popconfirm } from 'beaver-ui';
 export function OrderTable(props: {
   orders: Order[];
   loading?: boolean;
+  role?: Role;
+  isRefundable?: (o: Order) => boolean;
   selectedKeys?: string[];
   onSelectionChange?: (keys: string[]) => void;
   onView: (o: Order) => void;
@@ -33,7 +36,17 @@ export function OrderTable(props: {
     | { total: number; page: number; pageSize: number; onChange?: (page: number, pageSize?: number) => void }
     | false;
 }) {
-  const { orders, loading, selectedKeys = [], onSelectionChange, onView, onAction, pagination } = props;
+  const {
+    orders,
+    loading,
+    role,
+    isRefundable,
+    selectedKeys = [],
+    onSelectionChange,
+    onView,
+    onAction,
+    pagination,
+  } = props;
 
   // beaver-ui Table 的列定义
   type LocalColumn = {
@@ -58,7 +71,7 @@ export function OrderTable(props: {
       title: '状态',
       render: (_value: unknown, row: unknown) => {
         const o = row as Order;
-        const entity = new OrderEntity(o);
+        const entity = new OrderEntity(o, { role, isRefundable: isRefundable?.(o) });
         const text = entity.statusLabel();
         const styleMap: Record<string, React.CSSProperties> = {
           pending: { background: '#fff4e5', color: '#b36b00' },
@@ -93,7 +106,7 @@ export function OrderTable(props: {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
           {(() => {
             const o = row as Order;
-            const entity = new OrderEntity(o);
+            const entity = new OrderEntity(o, { role, isRefundable: isRefundable?.(o) });
 
             const orderedKeys: UIActionKey[] = ['VIEW_DETAIL', 'PAY', 'SHIP', 'REFUND', 'CANCEL', 'DELETE'];
             return orderedKeys.map((key) => {

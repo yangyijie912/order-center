@@ -1,9 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { __getDB, __setDB } from '../../route';
 import { canTransition } from '@/features/orders/domain/stateMachine';
+import { getRoleFromRequest } from '@/features/auth/server';
 
 // 取消订单接口：通过状态机校验是否允许取消（如 pending -> cancelled）
-export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
     const params = await ctx.params;
     const id = decodeURIComponent(params.id);
@@ -13,9 +14,11 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
 
     const o = db[idx];
 
+    const role = getRoleFromRequest(req) ?? 'viewer';
+
     const guard = canTransition(o.status, 'CANCEL', {
       order: { id: o.id, userId: o.userId, amount: o.amount, status: o.status },
-      role: 'operator',
+      role,
     });
     if (guard !== true) {
       return NextResponse.json(

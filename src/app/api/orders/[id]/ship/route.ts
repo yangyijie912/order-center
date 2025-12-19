@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { __getDB, __setDB } from '../../route';
 import { canTransition } from '@/features/orders/domain/stateMachine';
+import { getRoleFromRequest } from '@/features/auth/server';
 
 // 发货接口：使用状态机校验是否允许从当前状态转为 `shipped`，并支持保存运单号
 // 异常处理：
@@ -18,11 +19,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     const o = db[idx];
 
+    const role = getRoleFromRequest(req) ?? 'viewer';
+
     // 使用状态机统一校验是否允许发货（兼容各种异常/回退状态）
     const guard = canTransition(o.status, 'SHIP', {
       order: { id: o.id, userId: o.userId, amount: o.amount, status: o.status },
-      // 在无鉴权信息时默认使用 operator 角色，便于后台管理类接口在本地环境通过校验
-      role: 'operator',
+      role,
     });
     if (guard !== true) {
       return NextResponse.json(

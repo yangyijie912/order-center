@@ -2,8 +2,9 @@ import type { Order, OrderStatus } from './types';
 import type { OrderContext, OrderEvent } from './stateMachine';
 import { can as canTransition, transition } from './stateMachine';
 import { canActionOnOrder } from './rules';
+import { UI_ACTION_TO_RULE_ACTION } from './uiActionMap';
 
-export type Role = 'admin' | 'operator' | 'viewer';
+import type { Role } from '@/features/auth/types';
 
 /**
  * OrderEntity
@@ -79,9 +80,7 @@ export class OrderEntity {
     // 否则退回到基于订单状态的旧规则判断（例如 DELETE/VIEW_DETAIL）
     // 使用 domain.rules 的 canActionOnOrder
     try {
-      // map UI keys to rule actions
-      const map: Record<string, 'DELETE' | 'VIEW_DETAIL'> = { DELETE: 'DELETE', VIEW_DETAIL: 'VIEW_DETAIL' };
-      const rule = map[actionKey];
+      const rule = UI_ACTION_TO_RULE_ACTION[actionKey as keyof typeof UI_ACTION_TO_RULE_ACTION];
       if (!rule) return false;
       return canActionOnOrder(this.order, rule);
     } catch {

@@ -19,6 +19,19 @@ const STATUSES: OrderStatus[] = [
   'refunded',
 ];
 
+const REFUNDABLE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * 后端统一计算 isRefundable。
+ * - 缺失/解析失败时返回 false（安全默认不可退款）
+ */
+export function __computeIsRefundable(o: Order, nowMs: number = Date.now()): boolean {
+  if (o.status !== 'paid') return false;
+  const created = new Date(o.createdAt).getTime();
+  if (Number.isNaN(created)) return false;
+  return nowMs - created <= REFUNDABLE_WINDOW_MS;
+}
+
 // 模拟“数据库”——注意：dev 热更新/无服务器环境可能会重置
 let DB: Order[] | undefined = globalThis.__ORDER_DB__;
 
@@ -99,6 +112,7 @@ function q(req: Request) {
  * - 在内存 DB 上进行过滤、排序与分页后返回结果
  */
 export async function GET(req: Request) {
+  const nowMs = Date.now();
   const sp = q(req);
   const page = Math.max(1, Number(sp.get('page') ?? 1));
   const pageSize = Math.min(100, Math.max(5, Number(sp.get('pageSize') ?? 10)));
@@ -115,10 +129,10 @@ export async function GET(req: Request) {
 
   // 兜底：若支付模拟器的 setTimeout 未执行，拉列表时也能把 paying 结算到最终态
   const db = __getDB();
-  const settled = __settlePayingOrders(db);
+  const settled = __settlePayingOrders(db, { nowMs });
   if (settled !== db) __setDB(settled);
 
-  let list = (settled !== db ? settled : db).slice();
+  let list = (settled !== db ? settled : db).map((o) => ({ ...o, isRefundable: __computeIsRefundable(o, nowMs) }));
 
   // 关键字过滤（支持订单号 / 用户名 / 电话）
   if (keyword) {

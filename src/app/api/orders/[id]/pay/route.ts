@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { __getDB, __setDB } from '../../route';
 import { canTransition } from '@/features/orders/domain/stateMachine';
 import { simulatePayment } from '@/features/orders/services/paymentSimulator';
+import { getRoleFromRequest } from '@/features/auth/server';
 
 // 支付接口：通过状态机校验并执行从 pending -> paid 的转移
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -14,9 +15,11 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
 
     const o = db[idx];
 
+    const role = getRoleFromRequest(_req) ?? 'viewer';
+
     const guard = canTransition(o.status, 'PAY', {
       order: { id: o.id, userId: o.userId, amount: o.amount, status: o.status },
-      role: 'operator',
+      role,
     });
     if (guard !== true) {
       return NextResponse.json(

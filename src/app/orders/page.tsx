@@ -5,10 +5,12 @@ import type { Order } from '@/features/orders/domain/types';
 import { useOrderQuery } from '@/features/orders/hooks/useOrderQuery';
 import { useOrderList } from '@/features/orders/hooks/useOrderList';
 import { useOrderActions } from '@/features/orders/hooks/useOrderActions';
-import { partitionIdsByAction } from '@/features/orders/domain/rules';
+import { canDelete, partitionIdsByAction } from '@/features/orders/domain/rules';
 import { batchAction } from '@/features/orders/services/ordersApi';
 import { useOrderSelection } from '@/features/orders/hooks/useOrderSelection';
 import { OrderEntity } from '@/features/orders/domain/order';
+import type { Role } from '@/features/auth/types';
+import { useAuthRole } from '@/features/auth/useAuthRole';
 import { OrderFilterBar } from '@/features/orders/components/OrderFilterBar';
 import { OrderTable } from '@/features/orders/components/OrderTable';
 import OrderDetailDrawer from '@/features/orders/components/OrderDetailDrawer';
@@ -17,7 +19,12 @@ import { Button, Popconfirm, Toast, Modal, Input, Alert } from 'beaver-ui';
 function OrdersPageContent() {
   const { query, setQuery, resetQuery, refresh, reloadKey } = useOrderQuery();
   const { data, loading, error } = useOrderList(query, reloadKey);
-  const { performAction } = useOrderActions();
+
+  const role: Role = useAuthRole('viewer');
+  // 后端字段缺失时必须安全默认不可退款
+  const isRefundable = (o: Order) => o.isRefundable === true;
+
+  const { performAction } = useOrderActions({ role, isRefundable });
   const { selectedIds, clear, toggle } = useOrderSelection();
 
   // 详情抽屉状态
@@ -33,8 +40,8 @@ function OrdersPageContent() {
 
   const canConfirmAction = useMemo(() => {
     if (!activeOrder || !actionType) return false;
-    return new OrderEntity(activeOrder).can(actionType);
-  }, [activeOrder, actionType]);
+    return new OrderEntity(activeOrder, { role, isRefundable: activeOrder.isRefundable === true }).can(actionType);
+  }, [activeOrder, actionType, role]);
 
   // 查看详情
   function handleViewDetail(o: Order) {
@@ -62,7 +69,7 @@ function OrdersPageContent() {
         skippedIds.push(id);
         continue;
       }
-      const ok = new OrderEntity(o).can('CANCEL');
+      const ok = new OrderEntity(o, { role, isRefundable: o.isRefundable === true }).can('CANCEL');
       (ok ? allowedIds : skippedIds).push(id);
     }
 
@@ -73,15 +80,22 @@ function OrdersPageContent() {
     }
 
     try {
-      const res = await batchAction('cancel', allowedIds);
+      const res = await batchAction('cancel', allowedIds, { role });
       const messages: string[] = [];
       if (res.successIds.length) messages.push(`成功取消 ${res.successIds.length} 条`);
       if (res.skippedIds.length || skippedIds.length)
         messages.push(`跳过 ${res.skippedIds.length + skippedIds.length} 条`);
-      if (res.failed.length) messages.push(`失败 ${res.failed.length} 条`);
 
-      if (res.successIds.length && !res.failed.length) Toast.success(messages.join('，'));
-      else if (res.failed.length) Toast.error(messages.join('，'));
+      const reasonItems = res.failed
+        .filter((x) => x && typeof x.id === 'string' && typeof x.reason === 'string')
+        .slice(0, 3)
+        .map((x) => `${x.id}：${x.reason}`);
+      if (reasonItems.length) {
+        const more = res.failed.length > reasonItems.length ? ` 等 ${res.failed.length} 条` : '';
+        messages.push(`原因：${reasonItems.join('；')}${more}`);
+      }
+
+      if (res.successIds.length) Toast.success(messages.join('，'));
       else Toast.info(messages.join('，'));
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e ?? 'Batch cancel failed');
@@ -98,6 +112,12 @@ function OrdersPageContent() {
     // 先在客户端按规则过滤出允许删除的 id，避免无谓请求
     const { allowedIds, skippedIds } = partitionIdsByAction(orders, selectedIds, 'delete');
 
+    const skippedByState = skippedIds.filter((id) => {
+      const o = orders.find((x) => x.id === id);
+      if (!o) return false;
+      return canDelete(o) !== true;
+    }).length;
+
     if (allowedIds.length === 0) {
       Toast.info(`没有可删除的订单（跳过 ${skippedIds.length} 条）`);
       clear();
@@ -105,16 +125,27 @@ function OrdersPageContent() {
     }
 
     try {
-      const res = await batchAction('delete', allowedIds);
+      const res = await batchAction('delete', allowedIds, { role });
       // 提示结果：成功 / 跳过 / 失败
       const messages: string[] = [];
       if (res.successIds.length) messages.push(`成功删除 ${res.successIds.length} 条`);
-      if (res.skippedIds.length || skippedIds.length)
-        messages.push(`跳过 ${res.skippedIds.length + skippedIds.length} 条`);
-      if (res.failed.length) messages.push(`失败 ${res.failed.length} 条`);
+      if (res.skippedIds.length || skippedIds.length) {
+        const totalSkipped = res.skippedIds.length + skippedIds.length;
+        const hint = skippedByState > 0 ? '（状态不允许）' : '';
+        messages.push(`跳过 ${totalSkipped} 条${hint}`);
+      }
+
+      const reasonItems = res.failed
+        .filter((x) => x && typeof x.id === 'string' && typeof x.reason === 'string')
+        .slice(0, 3)
+        .map((x) => `${x.id}：${x.reason}`);
+      if (reasonItems.length) {
+        const more = res.failed.length > reasonItems.length ? ` 等 ${res.failed.length} 条` : '';
+        messages.push(`原因：${reasonItems.join('；')}${more}`);
+      }
+
       // choose type based on results
-      if (res.successIds.length && !res.failed.length) Toast.success(messages.join('，'));
-      else if (res.failed.length) Toast.error(messages.join('，'));
+      if (res.successIds.length) Toast.success(messages.join('，'));
       else Toast.info(messages.join('，'));
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e ?? 'Batch delete failed');
@@ -202,6 +233,8 @@ function OrdersPageContent() {
       <OrderTable
         orders={orders}
         loading={loading}
+        role={role}
+        isRefundable={isRefundable}
         selectedKeys={selectedIds}
         onSelectionChange={(keys) => {
           clear();

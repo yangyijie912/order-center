@@ -38,6 +38,11 @@ export type Order = {
   updatedAt: string;
 
   itemsCount: number;
+  /**
+   * 是否可退款（由后端根据业务规则计算并返回）。
+   * - 缺失时前端必须按 false 处理（安全默认不可退款）
+   */
+  isRefundable?: boolean;
   // 可选的运单号（发货后可能存在）
   trackingNo?: string;
 };

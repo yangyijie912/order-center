@@ -1,4 +1,12 @@
 import type { OrderListQuery, OrderListResponse, OrderStatus } from '../domain/types';
+import type { Role } from '@/features/auth/types';
+
+function withRoleHeaders(init: RequestInit | undefined, role?: Role): RequestInit {
+  const headers = new Headers(init?.headers);
+  if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+  if (role) headers.set('x-role', role);
+  return { ...init, headers };
+}
 
 /**
  * 将 `OrderListQuery` 转换为查询字符串并调用后端 `/api/orders` 获取列表
@@ -22,9 +30,7 @@ export async function fetchOrders(query: OrderListQuery, init?: RequestInit): Pr
 
   const res = await fetch(`/api/orders?${sp.toString()}`, {
     method: 'GET',
-    ...init,
-    // 默认以 JSON 交互；允许外部通过 `init.headers` 覆盖
-    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+    ...withRoleHeaders(init, undefined),
     // 不缓存，确保每次请求都是最新数据
     cache: 'no-store',
   });
@@ -42,8 +48,11 @@ export async function fetchOrders(query: OrderListQuery, init?: RequestInit): Pr
  * 取消订单（POST 请求）
  * @param id - 订单 ID
  */
-export async function cancelOrder(id: string): Promise<{ success: true }> {
-  const res = await fetch(`/api/orders/${encodeURIComponent(id)}/cancel`, { method: 'POST' });
+export async function cancelOrder(id: string, opts?: { role?: Role }): Promise<{ success: true }> {
+  const res = await fetch(`/api/orders/${encodeURIComponent(id)}/cancel`, {
+    method: 'POST',
+    ...withRoleHeaders(undefined, opts?.role),
+  });
   if (!res.ok) throw new Error(`Cancel failed: ${res.status}`);
   return (await res.json()) as { success: true };
 }
@@ -52,8 +61,11 @@ export async function cancelOrder(id: string): Promise<{ success: true }> {
  * 删除订单（POST 请求）
  * @param id - 订单 ID
  */
-export async function deleteOrder(id: string): Promise<{ success: true }> {
-  const res = await fetch(`/api/orders/${encodeURIComponent(id)}/delete`, { method: 'POST' });
+export async function deleteOrder(id: string, opts?: { role?: Role }): Promise<{ success: true }> {
+  const res = await fetch(`/api/orders/${encodeURIComponent(id)}/delete`, {
+    method: 'POST',
+    ...withRoleHeaders(undefined, opts?.role),
+  });
   if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
   return (await res.json()) as { success: true };
 }
@@ -63,7 +75,8 @@ export async function deleteOrder(id: string): Promise<{ success: true }> {
  */
 export async function batchAction(
   action: 'cancel' | 'delete',
-  ids: string[]
+  ids: string[],
+  opts?: { role?: Role }
 ): Promise<{
   successIds: string[];
   skippedIds: string[];
@@ -71,7 +84,7 @@ export async function batchAction(
 }> {
   const res = await fetch('/api/orders/batch', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    ...withRoleHeaders(undefined, opts?.role),
     body: JSON.stringify({ action, ids }),
   });
 
@@ -92,9 +105,13 @@ export async function batchAction(
  * @param id - 订单 ID
  */
 export async function payOrder(
-  id: string
+  id: string,
+  opts?: { role?: Role }
 ): Promise<{ next: Extract<OrderStatus, 'paid' | 'paying' | 'payment_failed'>; message?: string }> {
-  const res = await fetch(`/api/orders/${encodeURIComponent(id)}/pay`, { method: 'POST' });
+  const res = await fetch(`/api/orders/${encodeURIComponent(id)}/pay`, {
+    method: 'POST',
+    ...withRoleHeaders(undefined, opts?.role),
+  });
   const body: unknown = await res.json().catch(() => ({}));
 
   const message =
@@ -112,8 +129,11 @@ export async function payOrder(
 /**
  * 退款订单（模拟）
  */
-export async function refundOrder(id: string): Promise<{ success: true }> {
-  const res = await fetch(`/api/orders/${encodeURIComponent(id)}/refund`, { method: 'POST' });
+export async function refundOrder(id: string, opts?: { role?: Role }): Promise<{ success: true }> {
+  const res = await fetch(`/api/orders/${encodeURIComponent(id)}/refund`, {
+    method: 'POST',
+    ...withRoleHeaders(undefined, opts?.role),
+  });
   if (!res.ok) throw new Error(`Refund failed: ${res.status}`);
   return (await res.json()) as { success: true };
 }
@@ -123,10 +143,10 @@ export async function refundOrder(id: string): Promise<{ success: true }> {
  * @param id - 订单 ID
  * @param trackingNo - 可选的运单号
  */
-export async function shipOrder(id: string, trackingNo?: string): Promise<{ success: true }> {
+export async function shipOrder(id: string, trackingNo?: string, opts?: { role?: Role }): Promise<{ success: true }> {
   const res = await fetch(`/api/orders/${encodeURIComponent(id)}/ship`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    ...withRoleHeaders(undefined, opts?.role),
     body: JSON.stringify({ trackingNo }),
   });
   if (!res.ok) throw new Error(`Ship failed: ${res.status}`);

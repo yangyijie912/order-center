@@ -5,6 +5,8 @@ import type { Order } from '../domain/types';
 import type { OrderEvent } from '../domain/stateMachine';
 import { deleteOrder } from '../services/ordersApi';
 import { OrderEntity } from '../domain/order';
+import type { Role } from '@/features/auth/types';
+import { canDelete } from '../domain/rules';
 import type { UIActionKey } from '../ui/uiActions';
 
 export type ActionResult = { ok: boolean; message?: string; status?: string };
@@ -22,15 +24,18 @@ export type UseOrderActionsReturn = {
   pending: { [key: string]: boolean };
 };
 
-export function useOrderActions(): UseOrderActionsReturn {
+export function useOrderActions(opts?: { role?: Role; isRefundable?: (o: Order) => boolean }): UseOrderActionsReturn {
   const [pending, setPending] = useState<{ [key: string]: boolean }>({});
+
+  const buildEntity = (order: Order) =>
+    new OrderEntity(order, { role: opts?.role, isRefundable: opts?.isRefundable?.(order) });
 
   const onCancel = async (order: Order): Promise<ActionResult> => {
     const key = `cancel_${order.id}`;
     try {
       setPending((p) => ({ ...p, [key]: true }));
 
-      const entity = new OrderEntity(order);
+      const entity = buildEntity(order);
       await entity.next('CANCEL');
       return { ok: true };
     } catch (e) {
@@ -48,8 +53,11 @@ export function useOrderActions(): UseOrderActionsReturn {
   const onDelete = async (order: Order): Promise<ActionResult> => {
     const key = `delete_${order.id}`;
     try {
+      const allowed = canDelete(order);
+      if (allowed !== true) return { ok: false, message: allowed.reason };
+
       setPending((p) => ({ ...p, [key]: true }));
-      await deleteOrder(order.id);
+      await deleteOrder(order.id, { role: opts?.role });
       return { ok: true };
     } catch (e) {
       const msg = e instanceof Error ? e.message : '删除订单失败';
@@ -77,7 +85,7 @@ export function useOrderActions(): UseOrderActionsReturn {
         return await onDelete(order);
       case 'REFUND':
         try {
-          const entity = new OrderEntity(order);
+          const entity = buildEntity(order);
           await entity.next('REFUND');
           return { ok: true };
         } catch (e) {
@@ -86,7 +94,7 @@ export function useOrderActions(): UseOrderActionsReturn {
         }
       case 'PAY':
         try {
-          const entity = new OrderEntity(order);
+          const entity = buildEntity(order);
           const r = await entity.next('PAY');
 
           if (r.next === 'paid') return { ok: true };
@@ -100,7 +108,7 @@ export function useOrderActions(): UseOrderActionsReturn {
         }
       case 'SHIP':
         try {
-          const entity = new OrderEntity(order);
+          const entity = buildEntity(order);
           let event: OrderEvent;
           if (payload && typeof payload === 'object') {
             const p = payload as { trackingNo?: string };

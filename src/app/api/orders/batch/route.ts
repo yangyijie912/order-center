@@ -2,10 +2,12 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { __getDB, __setDB } from '../route';
 import { canTransition } from '@/features/orders/domain/stateMachine';
 import { canDelete } from '@/features/orders/domain/rules';
+import { getRoleFromRequest } from '@/features/auth/server';
 
 type BatchAction = { action: 'cancel' | 'delete'; ids: string[] };
 
 export async function POST(req: NextRequest) {
+  const role = getRoleFromRequest(req) ?? 'viewer';
   let body: BatchAction;
   try {
     const parsed: unknown = await req.json();
@@ -34,15 +36,17 @@ export async function POST(req: NextRequest) {
       const idx = next.findIndex((o) => o.id === id);
       if (idx === -1) {
         skippedIds.push(id);
+        failed.push({ id, reason: '订单不存在' });
         continue;
       }
       const o = next[idx];
       const guard = canTransition(o.status, 'CANCEL', {
         order: { id: o.id, userId: o.userId, amount: o.amount, status: o.status },
-        role: 'operator',
+        role,
       });
       if (guard !== true) {
         skippedIds.push(id);
+        failed.push({ id, reason: guard.reason ?? '不允许的操作' });
         continue;
       }
       next[idx] = { ...o, status: 'cancelled', updatedAt: new Date().toISOString() };
@@ -58,11 +62,14 @@ export async function POST(req: NextRequest) {
       const idx = next.findIndex((o) => o.id === id);
       if (idx === -1) {
         skippedIds.push(id);
+        failed.push({ id, reason: '订单不存在' });
         continue;
       }
       const o = next[idx];
-      if (canDelete(o) !== true) {
+      const allowed = canDelete(o);
+      if (allowed !== true) {
         skippedIds.push(id);
+        failed.push({ id, reason: allowed.reason ?? '不允许的操作' });
         continue;
       }
       next.splice(idx, 1);

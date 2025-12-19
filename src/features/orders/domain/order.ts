@@ -1,10 +1,16 @@
 import type { Order, OrderStatus } from './types';
 import type { OrderContext, OrderEvent } from './stateMachine';
-import { can as canTransition, transition } from './stateMachine';
+import { can as canTransition, orderTransitions, transition } from './stateMachine';
 import { canActionOnOrder } from './rules';
 import { UI_ACTION_TO_RULE_ACTION } from './uiActionMap';
 
 import type { Role } from '@/features/auth/types';
+
+const ORDER_EVENT_TYPE_SET = new Set<string>(
+  Object.values(orderTransitions)
+    .flatMap((t) => Object.keys(t ?? {}))
+    .filter((k) => typeof k === 'string' && k.length > 0)
+);
 
 /**
  * OrderEntity
@@ -72,8 +78,7 @@ export class OrderEntity {
    */
   canUIAction(actionKey: string): boolean {
     // 如果 actionKey 对应状态机事件，直接委托给 can
-    const eventTypes = ['PAY', 'CANCEL', 'SHIP', 'CONFIRM_RECEIPT', 'REFUND'];
-    if (eventTypes.includes(actionKey)) {
+    if (ORDER_EVENT_TYPE_SET.has(actionKey)) {
       return this.can(actionKey as OrderEvent['type']);
     }
 

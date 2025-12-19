@@ -1,8 +1,4 @@
-import type { Order } from '../domain/types';
-import type { OrderContext, OrderEvent } from '../domain/stateMachine';
-import { can as canTransition } from '../domain/stateMachine';
-import { canActionOnOrder, canDelete } from '../domain/rules';
-import { UI_ACTION_TO_RULE_ACTION } from '../domain/uiActionMap';
+import type { OrderEvent } from '../domain/stateMachine';
 
 export type UIActionKey = 'VIEW_DETAIL' | 'CANCEL' | 'DELETE' | 'REFUND' | 'PAY' | 'SHIP';
 
@@ -32,38 +28,3 @@ export const UI_ACTIONS: Record<
   REFUND: { label: '退款', eventType: 'REFUND', color: '#FF7A45' },
   SHIP: { label: '发货', eventType: 'SHIP', color: '#16A34A' },
 };
-
-export type AvailableAction = { type: string; enabled: boolean; reason?: string };
-
-/**
- * 为 UI 返回当前订单可见的动作（包含启用/禁用与原因）
- * - 纯 UI 层函数，调用 domain 的 `can` / `rules` 完成判断
- */
-export function getAvailableUIActions(order: Order, ctx: OrderContext): AvailableAction[] {
-  const actions: AvailableAction[] = [];
-
-  for (const key of Object.keys(UI_ACTIONS) as UIActionKey[]) {
-    const def = UI_ACTIONS[key];
-    if (def.eventType) {
-      const allowed = canTransition(order.status, def.eventType, ctx);
-      actions.push({ type: key, enabled: allowed === true, reason: allowed === true ? undefined : allowed.reason });
-    } else {
-      // 非状态机事件：基于真实 order 的规则判断（例如 DELETE/VIEW_DETAIL）
-      const rule = UI_ACTION_TO_RULE_ACTION[key as keyof typeof UI_ACTION_TO_RULE_ACTION];
-      if (!rule) {
-        actions.push({ type: key, enabled: false, reason: '不可用' });
-        continue;
-      }
-
-      if (rule === 'DELETE') {
-        const r = canDelete(order);
-        actions.push({ type: key, enabled: r === true, reason: r === true ? undefined : r.reason });
-      } else {
-        const ok = canActionOnOrder(order, rule);
-        actions.push({ type: key, enabled: ok, reason: ok ? undefined : '不可用' });
-      }
-    }
-  }
-
-  return actions;
-}

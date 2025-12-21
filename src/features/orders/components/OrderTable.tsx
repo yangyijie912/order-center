@@ -5,7 +5,8 @@ import { UI_ACTIONS, type UIActionKey } from '../ui/uiActions';
 import { OrderEntity } from '../domain/order';
 import type { Role } from '@/features/auth/roles';
 import type { OrderEvent } from '../domain/stateMachine';
-import { Button, Table, Popconfirm } from 'beaver-ui';
+import { Button, Table, Popconfirm, Tag } from 'beaver-ui';
+import { getTagPropsForStatus } from '../ui/statusTagMap';
 
 /**
  * OrderTable
@@ -73,23 +74,13 @@ export function OrderTable(props: {
         const o = row as Order;
         const entity = new OrderEntity(o, { role, isRefundable: isRefundable?.(o) });
         const text = entity.statusLabel();
-        const styleMap: Record<string, React.CSSProperties> = {
-          pending: { background: '#fff4e5', color: '#b36b00' },
-          paid: { background: '#e6f7ff', color: '#096dd9' },
-          shipped: { background: '#f0f5ff', color: '#2f54eb' },
-          completed: { background: '#f6ffed', color: '#237804' },
-          cancelled: { background: '#f5f5f5', color: '#8c8c8c' },
-          refunded: { background: '#fff1f0', color: '#a8071a' },
-        };
-        const base: React.CSSProperties = {
-          display: 'inline-block',
-          padding: '4px 10px',
-          borderRadius: 12,
-          fontSize: 12,
-          fontWeight: 500,
-        };
-        const style = { ...(styleMap[entity.status] ?? { background: '#fafafa', color: '#222' }), ...base };
-        return <span style={style}>{text}</span>;
+        // 从集中配置获取 Tag props，便于维护与扩展
+        const tagProps = getTagPropsForStatus(entity.status);
+        return (
+          <Tag type={tagProps.type} variant={tagProps.variant} size={tagProps.size} customColor={tagProps.customColor}>
+            {text}
+          </Tag>
+        );
       },
     },
     {

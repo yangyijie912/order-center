@@ -1,6 +1,8 @@
 import type { OrderStatus } from './types';
 import { cancelOrder, payOrder, refundOrder, shipOrder } from '../services/ordersApi';
-import type { Role } from '@/features/auth/types';
+import type { Role } from '@/features/auth/roles';
+import { canRefund, canShip } from './rules';
+import type { OrderLike } from './rules';
 
 /**
  * 订单状态机定义
@@ -118,12 +120,19 @@ export const orderTransitions: Record<OrderStatus, Partial<Record<OrderEvent['ty
   paid: {
     SHIP: {
       target: 'shipped',
-      guard: (ctx) => (ctx.role && ctx.role !== 'viewer' ? true : { ok: false, reason: '无权限发货' }),
+      guard: (ctx) => {
+        // ctx.order 是精简对象，允许把 isRefundable 传进来
+        const orderLike: OrderLike = { ...ctx.order, isRefundable: ctx.isRefundable };
+        return canShip(orderLike, (ctx.role ?? 'viewer') as Role);
+      },
       effect: effects.SHIP,
     },
     REFUND: {
       target: 'refunded',
-      guard: (ctx) => (ctx.isRefundable === true ? true : { ok: false, reason: '该订单不可退款' }),
+      guard: (ctx) => {
+        const orderLike: OrderLike = { ...ctx.order, isRefundable: ctx.isRefundable };
+        return canRefund(orderLike, (ctx.role ?? 'viewer') as Role);
+      },
       effect: effects.REFUND,
     },
   },

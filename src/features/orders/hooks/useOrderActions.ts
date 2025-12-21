@@ -5,7 +5,7 @@ import type { Order } from '../domain/types';
 import type { OrderEvent } from '../domain/stateMachine';
 import { deleteOrder } from '../services/ordersApi';
 import { OrderEntity } from '../domain/order';
-import type { Role } from '@/features/auth/types';
+import type { Role } from '@/features/auth/roles';
 import { canDelete } from '../domain/rules';
 import type { UIActionKey } from '../ui/uiActions';
 
@@ -53,7 +53,7 @@ export function useOrderActions(opts?: { role?: Role; isRefundable?: (o: Order) 
   const onDelete = async (order: Order): Promise<ActionResult> => {
     const key = `delete_${order.id}`;
     try {
-      const allowed = canDelete(order);
+      const allowed = canDelete(order, opts?.role);
       if (allowed !== true) return { ok: false, message: allowed.reason };
 
       setPending((p) => ({ ...p, [key]: true }));

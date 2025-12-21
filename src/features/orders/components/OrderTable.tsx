@@ -3,7 +3,7 @@
 import type { Order } from '../domain/types';
 import { UI_ACTIONS, type UIActionKey } from '../ui/uiActions';
 import { OrderEntity } from '../domain/order';
-import type { Role } from '@/features/auth/types';
+import type { Role } from '@/features/auth/roles';
 import type { OrderEvent } from '../domain/stateMachine';
 import { Button, Table, Popconfirm } from 'beaver-ui';
 

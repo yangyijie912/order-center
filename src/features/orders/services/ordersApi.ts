@@ -1,5 +1,5 @@
 import type { OrderListQuery, OrderListResponse, OrderStatus } from '../domain/types';
-import type { Role } from '@/features/auth/types';
+import type { Role } from '@/features/auth/roles';
 
 function withRoleHeaders(init: RequestInit | undefined, role?: Role): RequestInit {
   const headers = new Headers(init?.headers);

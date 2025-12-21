@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useMemo, useState, type ChangeEvent } from 'react';
+import AuthSwitcherClient from '@/app/components/AuthSwitcherClient';
 import type { Order } from '@/features/orders/domain/types';
 import { useOrderQuery } from '@/features/orders/hooks/useOrderQuery';
 import { useOrderList } from '@/features/orders/hooks/useOrderList';
@@ -9,7 +10,7 @@ import { canDelete, partitionIdsByAction } from '@/features/orders/domain/rules'
 import { batchAction } from '@/features/orders/services/ordersApi';
 import { useOrderSelection } from '@/features/orders/hooks/useOrderSelection';
 import { OrderEntity } from '@/features/orders/domain/order';
-import type { Role } from '@/features/auth/types';
+import type { Role } from '@/features/auth/roles';
 import { useAuthRole } from '@/features/auth/useAuthRole';
 import { OrderFilterBar } from '@/features/orders/components/OrderFilterBar';
 import { OrderTable } from '@/features/orders/components/OrderTable';
@@ -110,12 +111,12 @@ function OrdersPageContent() {
   async function handleBatchDelete() {
     if (selectedIds.length === 0) return;
     // 先在客户端按规则过滤出允许删除的 id，避免无谓请求
-    const { allowedIds, skippedIds } = partitionIdsByAction(orders, selectedIds, 'delete');
+    const { allowedIds, skippedIds } = partitionIdsByAction(orders, selectedIds, 'delete', role);
 
     const skippedByState = skippedIds.filter((id) => {
       const o = orders.find((x) => x.id === id);
       if (!o) return false;
-      return canDelete(o) !== true;
+      return canDelete(o, role) !== true;
     }).length;
 
     if (allowedIds.length === 0) {
@@ -161,9 +162,14 @@ function OrdersPageContent() {
   return (
     <div style={{ padding: 20, maxWidth: 1200, margin: '0 auto' }}>
       {/* 顶部标题 */}
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 600, margin: '0 0 8px 0' }}>Order Center</h1>
-        <p style={{ fontSize: 14, color: '#666', margin: 0 }}>订单中心 · 支持筛选、批量操作、状态流转</p>
+      <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 600, margin: '0 0 8px 0' }}>Order Center</h1>
+          <p style={{ fontSize: 14, color: '#666', margin: 0 }}>订单中心 · 支持筛选、批量操作、状态流转</p>
+        </div>
+        <div>
+          <AuthSwitcherClient inline />
+        </div>
       </div>
 
       {/* 筛选栏 */}

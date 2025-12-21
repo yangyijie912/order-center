@@ -4,7 +4,7 @@ import { can as canTransition, orderTransitions, transition } from './stateMachi
 import { canActionOnOrder } from './rules';
 import { UI_ACTION_TO_RULE_ACTION } from './uiActionMap';
 
-import type { Role } from '@/features/auth/types';
+import type { Role } from '@/features/auth/roles';
 
 const ORDER_EVENT_TYPE_SET = new Set<string>(
   Object.values(orderTransitions)

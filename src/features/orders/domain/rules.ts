@@ -1,61 +1,79 @@
 import type { Order, OrderStatus } from './types';
+import type { Role } from '@/features/auth/roles';
+import { roleAllows } from '@/features/auth/roles';
 
-// 操作类型定义
-export type OrderAction = 'VIEW_DETAIL' | 'CANCEL' | 'DELETE' | 'REFUND';
+// 操作类型定义（UI 高阶动作）
+export type OrderAction = 'VIEW_DETAIL' | 'CANCEL' | 'DELETE' | 'REFUND' | 'SHIP';
 
-export type RuleResult = true | { ok: false; reason: string };
+export type CheckFailReason = 'ROLE_FORBIDDEN' | 'STATUS_FORBIDDEN' | 'MISSING_ROLE';
 
-// 基于订单状态定义每种动作是否允许执行
-// 使用 Partial<Record<OrderStatus, ...>> 来兼容新增的异常/中间态
+export type RuleResult =
+  | true
+  | {
+      ok: false;
+      reason: string; // human-friendly message (保持兼容现有代码)
+      code: CheckFailReason;
+    };
+
+// 基于订单状态定义每种动作是否允许执行（与以前相同）
 const ACTIONS_BY_STATUS: Partial<Record<OrderStatus, Record<OrderAction, boolean>>> = {
-  pending: { VIEW_DETAIL: true, CANCEL: true, DELETE: false, REFUND: false },
-  paid: { VIEW_DETAIL: true, CANCEL: false, DELETE: false, REFUND: true },
-  shipped: { VIEW_DETAIL: true, CANCEL: false, DELETE: false, REFUND: true },
-  completed: { VIEW_DETAIL: true, CANCEL: false, DELETE: true, REFUND: false },
-  cancelled: { VIEW_DETAIL: true, CANCEL: false, DELETE: true, REFUND: false },
-  refunded: { VIEW_DETAIL: true, CANCEL: false, DELETE: true, REFUND: false },
+  pending: { VIEW_DETAIL: true, CANCEL: true, DELETE: false, REFUND: false, SHIP: false },
+  paid: { VIEW_DETAIL: true, CANCEL: false, DELETE: false, REFUND: true, SHIP: true },
+  shipped: { VIEW_DETAIL: true, CANCEL: false, DELETE: false, REFUND: true, SHIP: false },
+  completed: { VIEW_DETAIL: true, CANCEL: false, DELETE: true, REFUND: false, SHIP: false },
+  cancelled: { VIEW_DETAIL: true, CANCEL: false, DELETE: true, REFUND: false, SHIP: false },
+  refunded: { VIEW_DETAIL: true, CANCEL: false, DELETE: true, REFUND: false, SHIP: false },
 };
 
-/**
- * 判断某个状态下是否允许某操作
- */
 export function canAction(status: OrderStatus, action: OrderAction): boolean {
-  // 对未声明的状态采用保守策略：仅允许查看详情
   const r = ACTIONS_BY_STATUS[status];
   if (!r) return action === 'VIEW_DETAIL';
-  return r[action];
+  return Boolean(r[action]);
 }
 
-/**
- * 判断在具体订单对象上是否允许某操作（基于订单当前状态）
- */
-export function canActionOnOrder(order: Order, action: OrderAction): boolean {
+export function canActionOnOrder(order: Order | { status: OrderStatus }, action: OrderAction): boolean {
   return canAction(order.status, action);
 }
 
-/**
- * 删除是 UI Action（不进状态机），但删除条件需要统一收口。
- */
-export function canDelete(order: Order): RuleResult {
-  const ok = canActionOnOrder(order, 'DELETE');
-  if (ok) return true;
-  return { ok: false, reason: '当前状态不允许删除订单' };
+// rolePolicies / roleAllows 已抽取到 src/features/auth/roles.ts
+
+// 具体动作的规则封装：同时考虑状态与角色（返回 RuleResult）
+export type OrderLike = { status: OrderStatus; isRefundable?: boolean } & Partial<Order>;
+
+export function canDelete(order: OrderLike, role?: Role): RuleResult {
+  if (!canActionOnOrder(order, 'DELETE'))
+    return { ok: false, reason: '当前状态不允许删除订单', code: 'STATUS_FORBIDDEN' };
+  if (!role) return { ok: false, reason: '缺少角色信息', code: 'MISSING_ROLE' };
+  if (!roleAllows('delete', role)) return { ok: false, reason: '仅管理员可删除订单', code: 'ROLE_FORBIDDEN' };
+  return true;
 }
 
-/**
- * 根据提供的订单与 id 列表，将 id 分为允许执行与跳过两类
- * - 常用于批量操作：先过滤出允许操作的 id，跳过不允许的 id
- * @param orders - 当前已加载的订单数据（用于按 id 查找对应订单）
- * @param ids - 待处理的 id 列表（例如从表格选择项）
- * @param action - 要尝试的动作（'cancel' | 'delete'）
- */
+export function canRefund(order: OrderLike, role: Role): RuleResult {
+  if (!canActionOnOrder(order, 'REFUND')) return { ok: false, reason: '当前状态不允许退款', code: 'STATUS_FORBIDDEN' };
+  if (!order.isRefundable) return { ok: false, reason: '该订单不可退款', code: 'STATUS_FORBIDDEN' };
+  if (!roleAllows('refund', role)) return { ok: false, reason: '无权限退款', code: 'ROLE_FORBIDDEN' };
+  return true;
+}
+
+export function canShip(order: OrderLike, role: Role): RuleResult {
+  if (!canActionOnOrder(order, 'SHIP')) return { ok: false, reason: '当前状态不允许发货', code: 'STATUS_FORBIDDEN' };
+  if (!roleAllows('ship', role)) return { ok: false, reason: '无权限发货', code: 'ROLE_FORBIDDEN' };
+  return true;
+}
+
 export function partitionIdsByAction(
   orders: Order[],
   ids: string[],
-  action: 'cancel' | 'delete'
-): { allowedIds: string[]; skippedIds: string[] } {
+  action: 'cancel' | 'delete',
+  role?: Role
+): {
+  allowedIds: string[];
+  skippedIds: string[]; // 保持老 API
+  blocked?: { id: string; reason: string; code: CheckFailReason }[];
+} {
   const allowed: string[] = [];
   const skipped: string[] = [];
+  const blocked: { id: string; reason: string; code: CheckFailReason }[] = [];
   const byId = new Map(orders.map((o) => [o.id, o]));
 
   for (const id of ids) {
@@ -65,10 +83,24 @@ export function partitionIdsByAction(
       continue;
     }
 
-    const ok = action === 'cancel' ? canActionOnOrder(o, 'CANCEL') : canActionOnOrder(o, 'DELETE');
+    if (action === 'cancel') {
+      const ok = canActionOnOrder(o, 'CANCEL');
+      if (ok) allowed.push(id);
+      else {
+        skipped.push(id);
+        blocked.push({ id, reason: '当前状态不允许批量取消', code: 'STATUS_FORBIDDEN' });
+      }
+      continue;
+    }
 
-    (ok ? allowed : skipped).push(id);
+    // action === 'delete'
+    const res = canDelete(o, role);
+    if (res === true) allowed.push(id);
+    else {
+      skipped.push(id);
+      blocked.push({ id, reason: res.reason, code: res.code });
+    }
   }
 
-  return { allowedIds: allowed, skippedIds: skipped };
+  return { allowedIds: allowed, skippedIds: skipped, blocked };
 }

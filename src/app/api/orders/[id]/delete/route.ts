@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { __getDB, __setDB } from '../../route';
 import { canDelete } from '@/features/orders/domain/rules';
+import { getRoleFromRequest } from '@/features/auth/server';
 
 // 删除订单接口（仅允许在特定状态下删除）
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -12,7 +13,8 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     if (idx === -1) return NextResponse.json({ error: 'NotFound', message: '订单不存在' }, { status: 404 });
 
     const o = db[idx];
-    const allowed = canDelete(o);
+    const role = getRoleFromRequest(_req) ?? 'viewer';
+    const allowed = canDelete(o, role);
     if (allowed !== true) {
       return NextResponse.json({ error: 'NotAllowed', message: allowed.reason }, { status: 409 });
     }

@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
         continue;
       }
       const o = next[idx];
-      const allowed = canDelete(o);
+      const allowed = canDelete(o, role);
       if (allowed !== true) {
         skippedIds.push(id);
         failed.push({ id, reason: allowed.reason ?? '不允许的操作' });

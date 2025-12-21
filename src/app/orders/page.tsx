@@ -180,12 +180,16 @@ function OrdersPageContent() {
       {/* 错误提示（使用 beaver-ui 的 Alert） */}
       {error ? (
         <div style={{ marginBottom: 16 }}>
-          <Alert type="error" title="请求失败" message={String(error)} />
-          <div style={{ marginTop: 8 }}>
-            <Button size="small" onClick={() => refresh()} variant="link">
-              重试
-            </Button>
-          </div>
+          <Alert
+            type="error"
+            title="请求失败"
+            message={String(error)}
+            actions={
+              <Button size="small" onClick={() => refresh()} variant="link">
+                重试
+              </Button>
+            }
+          />
         </div>
       ) : null}
 

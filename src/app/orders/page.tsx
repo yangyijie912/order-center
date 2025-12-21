@@ -242,7 +242,7 @@ function OrdersPageContent() {
       {/* 表格 */}
       <OrderTable
         orders={orders}
-        loading={loading}
+        loading={loading || data == null}
         role={role}
         isRefundable={isRefundable}
         selectedKeys={selectedIds}

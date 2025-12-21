@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="订单中心">
+  <defs>
+    <linearGradient id="g" x1="0" x2="1">
+      <stop offset="0" stop-color="#334155"/>
+      <stop offset="1" stop-color="#071029"/>
+    </linearGradient>
+  </defs>
+  <rect width="100%" height="100%" rx="10" fill="url(#g)" />
+  <!-- Centered inner square enlarged to fit larger text -->
+  <rect x="14" y="14" width="36" height="36" rx="8" fill="rgba(11,18,32,0.85)" stroke="rgba(255,255,255,0.12)"/>
+  <text x="50%" y="50%" dy="0.12em" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="28" font-weight="900" fill="#e6eef8" text-anchor="middle" dominant-baseline="middle" text-rendering="geometricPrecision">OC</text>
+</svg>

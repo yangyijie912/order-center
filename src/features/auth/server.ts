@@ -1,4 +1,4 @@
-import type { Role } from './types';
+import type { Role } from './roles';
 
 function parseRole(input: string | null | undefined): Role | undefined {
   if (!input) return undefined;
